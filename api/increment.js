@@ -1,4 +1,3 @@
-// api/increment.js
 import { getRedis } from './_redis.js';
 
 export default async function handler(req, res) {
