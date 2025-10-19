@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <title>Global Counter</title>
 
-    <!-- Fix: no SRI; use jsDelivr -->
+    <!-- Use jsDelivr without integrity to avoid SRI mismatch -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/odometer@0.4.8/themes/odometer-theme-default.min.css">
     <script src="https://cdn.jsdelivr.net/npm/odometer@0.4.8/odometer.min.js" defer></script>
 
@@ -66,8 +66,6 @@
         return res.json();
       }
 
-      let pollTimer;
-
       async function refresh() {
         try {
           const { count } = await fetchJSON('/api/count');
@@ -78,36 +76,29 @@
       }
 
       (async function init() {
-        try {
-          // Initial load
-          await refresh();
+        await refresh();
+        // Poll every 1s; when tab is hidden, back off to 5s
+        let timer;
+        const schedule = () => {
+          clearInterval(timer);
+          const ms = document.hidden ? 5000 : 1000;
+          timer = setInterval(refresh, ms);
+        };
+        document.addEventListener('visibilitychange', schedule);
+        schedule();
 
-          // Poll every 1s (slower when tab hidden)
-          const startPolling = () => {
-            clearInterval(pollTimer);
-            const interval = document.hidden ? 5000 : 1000;
-            pollTimer = setInterval(refresh, interval);
-          };
-          document.addEventListener('visibilitychange', startPolling);
-          startPolling();
-
-          // Increment on click (optimistic update)
-          incBtn.addEventListener('click', async () => {
-            incBtn.disabled = true;
-            try {
-              const { count } = await fetchJSON('/api/increment', { method: 'POST' });
-              counterEl.innerHTML = count;
-            } catch (err) {
-              console.error(err);
-              alert('Failed to increment. Try again.');
-            } finally {
-              incBtn.disabled = false;
-            }
-          });
-        } catch (err) {
-          console.error(err);
-          alert('Failed to load counter.');
-        }
+        incBtn.addEventListener('click', async () => {
+          incBtn.disabled = true;
+          try {
+            const { count } = await fetchJSON('/api/increment', { method: 'POST' });
+            counterEl.innerHTML = count;
+          } catch (err) {
+            console.error(err);
+            alert('Failed to increment. Try again.');
+          } finally {
+            incBtn.disabled = false;
+          }
+        });
       })();
     </script>
   </body>
