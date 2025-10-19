@@ -1,4 +1,3 @@
-// api/count.js
 import { getRedis } from './_redis.js';
 
 export default async function handler(req, res) {
@@ -9,8 +8,7 @@ export default async function handler(req, res) {
   try {
     const redis = await getRedis();
     const val = await redis.get('global_count');
-    const count = Number(val) || 0;
-    res.status(200).json({ count });
+    res.status(200).json({ count: Number(val) || 0 });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to get count' });
