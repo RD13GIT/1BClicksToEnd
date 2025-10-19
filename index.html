@@ -1,0 +1,114 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Global Counter</title>
+
+    <!-- Fix: no SRI; use jsDelivr -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/odometer@0.4.8/themes/odometer-theme-default.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/odometer@0.4.8/odometer.min.js" defer></script>
+
+    <link rel="icon" href="data:," />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #0b1220;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue",
+          Ubuntu, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+        color: #e5e7eb;
+      }
+      .card {
+        display: grid;
+        gap: 16px;
+        padding: 32px 40px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+        text-align: center;
+        width: min(92vw, 520px);
+      }
+      .title { opacity: 0.8; font-size: 14px; letter-spacing: 0.08em; }
+      .odometer { font-size: 72px; font-weight: 800; line-height: 1; }
+      button {
+        font-size: 18px;
+        padding: 12px 18px;
+        border-radius: 12px;
+        border: none;
+        color: white;
+        background: #2563eb;
+        cursor: pointer;
+      }
+      button:hover { background: #1d4ed8; }
+      button:active { transform: translateY(1px); }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="title">Global Clicks</div>
+      <div id="counter" class="odometer">0</div>
+      <button id="inc">+1</button>
+    </div>
+
+    <script>
+      const counterEl = document.getElementById('counter');
+      const incBtn = document.getElementById('inc');
+
+      async function fetchJSON(url, opts) {
+        const res = await fetch(url, opts);
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+      }
+
+      let pollTimer;
+
+      async function refresh() {
+        try {
+          const { count } = await fetchJSON('/api/count');
+          counterEl.innerHTML = count;
+        } catch (e) {
+          console.error('poll error', e);
+        }
+      }
+
+      (async function init() {
+        try {
+          // Initial load
+          await refresh();
+
+          // Poll every 1s (slower when tab hidden)
+          const startPolling = () => {
+            clearInterval(pollTimer);
+            const interval = document.hidden ? 5000 : 1000;
+            pollTimer = setInterval(refresh, interval);
+          };
+          document.addEventListener('visibilitychange', startPolling);
+          startPolling();
+
+          // Increment on click (optimistic update)
+          incBtn.addEventListener('click', async () => {
+            incBtn.disabled = true;
+            try {
+              const { count } = await fetchJSON('/api/increment', { method: 'POST' });
+              counterEl.innerHTML = count;
+            } catch (err) {
+              console.error(err);
+              alert('Failed to increment. Try again.');
+            } finally {
+              incBtn.disabled = false;
+            }
+          });
+        } catch (err) {
+          console.error(err);
+          alert('Failed to load counter.');
+        }
+      })();
+    </script>
+  </body>
+</html>
