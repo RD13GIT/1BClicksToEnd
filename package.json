@@ -1,15 +1,10 @@
 {
-  "name": "global-counter",
+  "name": "vercel-global-counter",
   "version": "1.0.0",
-  "description": "Global counter with Redis INCR + SSE + ticker animation",
-  "main": "server.js",
-  "scripts": {
-    "dev": "node server.js",
-    "start": "NODE_ENV=production node server.js"
-  },
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=18" },
   "dependencies": {
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
     "redis": "^4.7.0"
   }
 }
