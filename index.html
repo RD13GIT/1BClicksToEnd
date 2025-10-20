@@ -15,15 +15,13 @@
       :root {
         color-scheme: dark;
 
-        /* Wider slots */
         --slots: 8;
-        --digit-w: 56px;  /* increase/decrease to taste */
+        --digit-w: 56px;  /* make slots wider/narrower here */
         --digit-h: 5rem;
         --gap: 12px;
         --border: 2px;
         --panel-pad: 14px;
 
-        /* Derived width (border-box: border is included in width) */
         --counter-w: calc(var(--slots) * var(--digit-w) + (var(--slots) - 1) * var(--gap));
       }
 
@@ -59,7 +57,6 @@
         text-transform: uppercase;
       }
 
-      /* Wrapper with panel behind */
       .counter-wrap {
         position: relative;
         display: inline-block;
@@ -75,12 +72,14 @@
         z-index: 0;
       }
 
-      /* Visible 8 slots */
+      /* 8 visible slot boxes (always shown) */
       .slots {
         position: absolute;
         inset: 0;
-        display: flex;
-        gap: var(--gap);
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: var(--digit-w);
+        column-gap: var(--gap);
         z-index: 1;
         pointer-events: none;
       }
@@ -92,40 +91,40 @@
         border-radius: 8px;
       }
 
-      /* Odometer digits layer — fixed and right-aligned */
+      /* Odometer layer on top, snapped to the same 8 columns */
       .odometer {
         position: relative;
         z-index: 2;
         width: var(--counter-w);
         height: var(--digit-h);
-        display: block; /* container only */
         font-size: 2rem;
         font-weight: 800;
         line-height: 1;
         font-variant-numeric: tabular-nums;
         user-select: none;
       }
-      /* Make the inside a flex row so digits can right-align to the slots */
+      /* Make the inside a grid so each digit occupies one slot */
       .odometer .odometer-inside {
-        display: flex !important;
-        justify-content: flex-end;
+        display: grid !important;
+        grid-auto-flow: column;
+        grid-auto-columns: var(--digit-w);
+        column-gap: var(--gap);
+        justify-content: end;   /* right-align into the rightmost slots */
         align-items: center;
-        gap: var(--gap);
         height: 100%;
       }
 
       /* Hide formatting marks (commas, etc.) */
       .odometer .odometer-formatting-mark { display: none !important; }
 
-      /* Each digit sized to the slot; transparent so the slot box shows behind */
+      /* Each digit fills its slot; keep the rolling ribbon inside */
       .odometer .odometer-digit {
         width: var(--digit-w) !important;
         height: var(--digit-h) !important;
+        overflow: hidden;
+        text-align: center;
         background: transparent !important;
         border: none !important;
-        overflow: hidden;
-        display: inline-block;
-        text-align: center;
       }
       .odometer .odometer-digit-spacer,
       .odometer .odometer-value,
@@ -167,8 +166,12 @@
           <span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span>
         </div>
 
-        <!-- Odometer digits sit on top, aligned to the right -->
-        <div id="counter" class="odometer">00000000</div>
+        <!-- Force 8 digits with data-odometer-format -->
+        <div
+          id="counter"
+          class="odometer"
+          data-odometer-format="dddddddd"
+        >0</div>
       </div>
 
       <button id="inc" class="cta-button" type="button">+1</button>
@@ -181,9 +184,6 @@
       const counterEl = document.getElementById('counter');
       const incBtn = document.getElementById('inc');
 
-      // Always show 8 digits
-      const pad8 = n => String(n).padStart(8, '0');
-
       async function fetchJSON(url, opts) {
         const res = await fetch(url, opts);
         if (!res.ok) throw new Error(await res.text());
@@ -193,7 +193,8 @@
       async function refresh() {
         try {
           const { count } = await fetchJSON('/api/count');
-          counterEl.innerHTML = pad8(count);
+          // Feed a number; the format string ensures 8 digits with leading zeros.
+          counterEl.innerHTML = Number(count);
         } catch (e) {
           console.error('poll error', e);
         }
@@ -236,7 +237,7 @@
           incBtn.disabled = true;
           try {
             const { count } = await fetchJSON('/api/increment', { method: 'POST' });
-            counterEl.innerHTML = pad8(count);
+            counterEl.innerHTML = Number(count);
           } catch (err) {
             console.error(err);
             alert('Failed to increment. Try again.');
