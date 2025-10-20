@@ -3,11 +3,6 @@
   <head>
     <meta charset="utf-8" />
     <title>Global Counter</title>
-
-    <!-- Odometer -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/odometer@0.4.8/themes/odometer-theme-default.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/odometer@0.4.8/odometer.min.js" defer></script>
-
     <link rel="icon" href="data:," />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -16,13 +11,13 @@
         color-scheme: dark;
 
         --slots: 8;
-        --digit-w: 56px;  /* make slots wider/narrower here */
-        --digit-h: 5rem;
+        --digit-w: 56px;   /* slot width (tweak here) */
+        --digit-h: 5rem;   /* slot height */
         --gap: 12px;
-        --border: 2px;
         --panel-pad: 14px;
-
-        --counter-w: calc(var(--slots) * var(--digit-w) + (var(--slots) - 1) * var(--gap));
+        --slot-bg: #191919;
+        --outline: #7a7a7a;
+        --panel-bg: #242424;
       }
 
       html, body { height: 100%; }
@@ -36,7 +31,7 @@
           Ubuntu, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
         color: #fff;
 
-        /* Grid background */
+        /* Grid background: squares #171717, lines #202020 */
         background-color: #171717;
         background-image:
           linear-gradient(#202020 1px, transparent 1px),
@@ -57,94 +52,69 @@
         text-transform: uppercase;
       }
 
+      /* Panel behind the counter (rounded top corners only) */
       .counter-wrap {
         position: relative;
         display: inline-block;
-        width: var(--counter-w);
-        height: var(--digit-h);
       }
-
       .panel {
         position: absolute;
         inset: calc(-1 * var(--panel-pad));
-        background: #242424;
-        border-radius: 16px 16px 0 0; /* smooth top corners */
+        background: var(--panel-bg);
+        border-radius: 16px 16px 0 0;
         z-index: 0;
       }
 
-      /* 8 visible slot boxes (always shown) */
-      .slots {
-        position: absolute;
-        inset: 0;
-        display: grid;
-        grid-auto-flow: column;
-        grid-auto-columns: var(--digit-w);
-        column-gap: var(--gap);
+      /* 8-slot counter */
+      .counter {
+        position: relative;
         z-index: 1;
-        pointer-events: none;
-      }
-      .slot {
-        width: var(--digit-w);
-        height: var(--digit-h);
-        background: #191919;
-        border: var(--border) solid #7a7a7a;
-        border-radius: 8px;
+        display: flex;
+        gap: var(--gap);
       }
 
-      /* Odometer layer on top, snapped to the same 8 columns */
-      .odometer {
+      .slot {
         position: relative;
-        z-index: 2;
-        width: var(--counter-w);
+        width: var(--digit-w);
         height: var(--digit-h);
+        background: var(--slot-bg);
+        border: 2px solid var(--outline);
+        border-radius: 8px;
+        overflow: hidden; /* window for the reel */
+      }
+
+      /* Vertical reel: 0→9 repeated twice so we can animate both directions */
+      .reel {
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        /* --i is the virtual index in the (0..9 0..9) list */
+        transform: translateY(calc(-1 * var(--i, 10) * var(--digit-h)));
+        transition: transform var(--t, 500ms) cubic-bezier(.2,.7,.2,1);
+        will-change: transform;
+      }
+
+      .num {
+        display: grid;
+        place-items: center;
+        height: var(--digit-h);
+        width: 100%;
         font-size: 2rem;
         font-weight: 800;
         line-height: 1;
         font-variant-numeric: tabular-nums;
-        user-select: none;
-      }
-      /* Make the inside a grid so each digit occupies one slot */
-      .odometer .odometer-inside {
-        display: grid !important;
-        grid-auto-flow: column;
-        grid-auto-columns: var(--digit-w);
-        column-gap: var(--gap);
-        justify-content: end;   /* right-align into the rightmost slots */
-        align-items: center;
-        height: 100%;
+        color: #fff;
       }
 
-      /* Hide formatting marks (commas, etc.) */
-      .odometer .odometer-formatting-mark { display: none !important; }
-
-      /* Each digit fills its slot; keep the rolling ribbon inside */
-      .odometer .odometer-digit {
-        width: var(--digit-w) !important;
-        height: var(--digit-h) !important;
-        overflow: hidden;
-        text-align: center;
-        background: transparent !important;
-        border: none !important;
-      }
-      .odometer .odometer-digit-spacer,
-      .odometer .odometer-value,
-      .odometer .odometer-digit-inner,
-      .odometer .odometer-ribbon,
-      .odometer .odometer-ribbon-inner {
-        height: var(--digit-h) !important;
-        line-height: var(--digit-h) !important;
-      }
-
-      /* Button outside, no stroke; width matches the panel via JS */
+      /* Button outside, no stroke; square top corners */
       .cta-button {
         display: block;
         box-sizing: border-box;
-        width: auto; /* set by JS */
+        width: auto;                /* set by JS to match the panel width */
         padding: 0.9rem 1.2rem;
         background: #242424;
         color: #fff;
         border: none;
-        border-radius: 8px;
+        border-radius: 0 0 8px 8px; /* square top, rounded bottom */
         font: inherit;
         cursor: pointer;
         text-align: center;
@@ -160,30 +130,127 @@
       <div class="counter-wrap">
         <div class="panel" aria-hidden="true"></div>
 
-        <!-- 8 slot boxes (always visible) -->
-        <div class="slots" aria-hidden="true">
-          <span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span>
-          <span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span>
-        </div>
-
-        <!-- Force 8 digits with data-odometer-format -->
-        <div
-          id="counter"
-          class="odometer"
-          data-odometer-format="dddddddd"
-        >0</div>
+        <!-- Custom 8-slot roller (0 at top, 9 at bottom) -->
+        <div id="counter" class="counter" aria-label="8-slot counter"></div>
       </div>
 
       <button id="inc" class="cta-button" type="button">+1</button>
     </div>
 
     <script>
-      // Odometer options
-      window.odometerOptions = { duration: 1000, animation: 'slide' };
+      const SLOTS = 8;
 
+      // Build the 8 reels: each reel has 0..9 then 0..9 so we can animate up or down
       const counterEl = document.getElementById('counter');
-      const incBtn = document.getElementById('inc');
+      const reels = [];
+      for (let i = 0; i < SLOTS; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'slot';
+        const reel = document.createElement('div');
+        reel.className = 'reel';
+        // initial virtual index = 10 + 0 (shows 0 centered with room to move)
+        reel.style.setProperty('--i', 10);
+        // two sequences 0..9
+        for (let k = 0; k < 20; k++) {
+          const num = document.createElement('div');
+          num.className = 'num';
+          num.textContent = k % 10;
+          reel.appendChild(num);
+        }
+        slot.appendChild(reel);
+        counterEl.appendChild(slot);
+        // track current virtual index
+        reel.dataset.index = '10'; // 10 + currentValue(0)
+        reels.push(reel);
+      }
 
+      // Animate one reel to target digit using the shortest path (up or down).
+      function animateReel(reel, targetDigit, stepsDuration = [250, 130]) {
+        const curIdx = Number(reel.dataset.index || 10);
+        const curVal = curIdx % 10;
+
+        // steps forward (down) vs backward (up)
+        const forward = (targetDigit - curVal + 10) % 10;
+        const backward = (curVal - targetDigit + 10) % 10;
+
+        let nextIdx, steps;
+        if (forward <= backward) {
+          nextIdx = curIdx + forward;     // move down
+          steps = forward;
+        } else {
+          nextIdx = curIdx - backward;    // move up
+          steps = backward;
+        }
+
+        // Duration scales with steps (snappier for small changes)
+        const dur = stepsDuration[0] + stepsDuration[1] * steps; // ms
+        reel.style.setProperty('--t', dur + 'ms');
+        reel.style.setProperty('--i', nextIdx);
+        reel.dataset.index = String(nextIdx);
+
+        // After the animation, normalize index back to baseline (10 + target)
+        const onEnd = (e) => {
+          if (e.propertyName !== 'transform') return;
+          reel.removeEventListener('transitionend', onEnd);
+
+          const baseline = 10 + (nextIdx % 10);
+          reel.style.setProperty('--t', '0ms');       // disable transition for snap-back
+          reel.style.setProperty('--i', baseline);    // visually identical
+          // Force reflow so the 0ms takes effect
+          void reel.offsetWidth;
+          reel.style.removeProperty('--t');           // restore default timing
+          reel.dataset.index = String(baseline);
+        };
+        reel.addEventListener('transitionend', onEnd);
+      }
+
+      // Render a number across all reels (left to right), animating each digit.
+      let currentValue = 0;
+      function setNumber(n, { animate = true } = {}) {
+        const next = Math.max(0, Math.floor(n));
+        const curStr  = String(currentValue).padStart(SLOTS, '0');
+        const nextStr = String(next).padStart(SLOTS, '0');
+
+        for (let i = 0; i < SLOTS; i++) {
+          const reel = reels[i];
+          const fromDigit = +curStr[i];
+          const toDigit   = +nextStr[i];
+
+          if (!animate) {
+            // Snap to baseline (10 + toDigit) without animation
+            const baseline = 10 + toDigit;
+            reel.style.setProperty('--t', '0ms');
+            reel.style.setProperty('--i', baseline);
+            reel.dataset.index = String(baseline);
+            // force and clear
+            void reel.offsetWidth;
+            reel.style.removeProperty('--t');
+          } else if (fromDigit !== toDigit) {
+            animateReel(reel, toDigit);
+          }
+        }
+        currentValue = next;
+      }
+
+      // Button width = panel width (pixel-perfect)
+      (function sizeButtonToPanel() {
+        const panel = document.querySelector('.panel');
+        const btn = document.querySelector('.cta-button');
+        const wrap = document.querySelector('.counter-wrap');
+        if (!panel || !btn || !wrap) return;
+
+        const setWidth = () => {
+          btn.style.width = Math.ceil(panel.getBoundingClientRect().width) + 'px';
+        };
+        window.addEventListener('load', setWidth);
+        window.addEventListener('resize', setWidth);
+        if ('ResizeObserver' in window) {
+          const ro = new ResizeObserver(setWidth);
+          ro.observe(wrap);
+        }
+      })();
+
+      // Networking
       async function fetchJSON(url, opts) {
         const res = await fetch(url, opts);
         if (!res.ok) throw new Error(await res.text());
@@ -193,37 +260,34 @@
       async function refresh() {
         try {
           const { count } = await fetchJSON('/api/count');
-          // Feed a number; the format string ensures 8 digits with leading zeros.
-          counterEl.innerHTML = Number(count);
+          // Animate only if value changed
+          if (count !== currentValue) setNumber(count, { animate: true });
         } catch (e) {
           console.error('poll error', e);
         }
       }
 
-      // Match button width to the behind panel exactly
-      (function sizeButtonToPanel() {
-        const panel = document.querySelector('.panel');
-        const btn = document.querySelector('.cta-button');
-        const target = document.querySelector('.counter-wrap');
-        if (!panel || !btn || !target) return;
-
-        const setButtonWidth = () => {
-          const w = Math.ceil(panel.getBoundingClientRect().width);
-          btn.style.width = w + 'px';
-        };
-
-        window.addEventListener('load', setButtonWidth);
-        window.addEventListener('resize', setButtonWidth);
-        if ('ResizeObserver' in window) {
-          const ro = new ResizeObserver(setButtonWidth);
-          ro.observe(target);
+      const incBtn = document.getElementById('inc');
+      incBtn.addEventListener('click', async () => {
+        incBtn.disabled = true;
+        try {
+          const { count } = await fetchJSON('/api/increment', { method: 'POST' });
+          setNumber(count, { animate: true });
+        } catch (err) {
+          console.error(err);
+          alert('Failed to increment. Try again.');
+        } finally {
+          incBtn.disabled = false;
         }
-      })();
+      });
 
+      // Init: load once (no animation), then poll
       (async function init() {
-        await refresh();
+        try {
+          const { count } = await fetchJSON('/api/count');
+          setNumber(count, { animate: false });
+        } catch { /* ignore first load errors */ }
 
-        // Poll every 1s; back off to 5s when tab is hidden
         let timer;
         const schedule = () => {
           clearInterval(timer);
@@ -232,19 +296,6 @@
         };
         document.addEventListener('visibilitychange', schedule);
         schedule();
-
-        incBtn.addEventListener('click', async () => {
-          incBtn.disabled = true;
-          try {
-            const { count } = await fetchJSON('/api/increment', { method: 'POST' });
-            counterEl.innerHTML = Number(count);
-          } catch (err) {
-            console.error(err);
-            alert('Failed to increment. Try again.');
-          } finally {
-            incBtn.disabled = false;
-          }
-        });
       })();
     </script>
   </body>
