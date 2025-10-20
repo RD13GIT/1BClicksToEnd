@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <!-- JetBrains Mono -->
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 
     <style>
       :root {
@@ -26,7 +26,6 @@
         --panel-bg: #242424;
         --slot-bg: #1b1b1b;
         --slot-border: #4a4a4a;       /* outer stroke */
-        --slot-inner: #2a2a2a;        /* inner inset ring */
         --digit: #8b5cf6;             /* violet digits */
       }
 
@@ -91,12 +90,12 @@
         border-radius: 14px;
         border: 2px solid var(--slot-border);               /* outer stroke */
         box-shadow:
-          inset 0 0 0 2px var(--slot-inner),                 /* inner ring */
+          inset 0 0 0 2px var(--slot-bg),                    /* inner ring same as tile */
           0 4px 14px rgba(0, 0, 0, 0.35);                    /* soft outer shadow */
         overflow: hidden;                                     /* viewport for reel */
       }
 
-      /* Reel holds 0..9 twice so we can animate shortest path up/down */
+      /* Reel holds 0..9 three times so 0 is always below 9 */
       .reel {
         position: absolute;
         top: 0; left: 0; right: 0;
@@ -117,8 +116,8 @@
         font-variant-numeric: tabular-nums;
         color: var(--digit);
         text-shadow:
-          0 0 12px rgba(139, 92, 246, 0.25),   /* subtle glow */
-          0 1px 0 rgba(0,0,0,0.4);            /* tiny lift */
+          0 0 12px rgba(139, 92, 246, 0.25),
+          0 1px 0 rgba(0,0,0,0.4);
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -160,34 +159,48 @@
     <script>
       const SLOTS = 8;
 
-      // Animation timing (slower)
-      const BASE = 800;   // ms base
-      const PER_STEP = 280; // ms per digit step (0..9)
+      // Animation timing (tweak to taste)
+      const BASE = 900;      // ms base
+      const PER_STEP = 300;  // ms per digit step (0..9)
 
-      // Build reels: each has 0..9 then 0..9 to allow both directions
+      // Build reels: 0..9 repeated 3x so 0 is always under 9.
+      const COPIES = 3;
+      const COPY_SIZE = 10;
+      const REEL_LEN = COPY_SIZE * COPIES;   // 30
+      const MIDDLE_OFFSET = COPY_SIZE;       // 10 -> middle copy
+
       const counterEl = document.getElementById('counter');
       const reels = [];
+
       for (let i = 0; i < SLOTS; i++) {
         const slot = document.createElement('div');
         slot.className = 'slot';
         const reel = document.createElement('div');
         reel.className = 'reel';
-        reel.style.setProperty('--i', 10); // baseline shows 0
-        for (let k = 0; k < 20; k++) {
-          const d = document.createElement('div');
-          d.className = 'num';
-          d.textContent = k % 10;
-          reel.appendChild(d);
+
+        // Build digits 0..9, 3 times
+        for (let c = 0; c < COPIES; c++) {
+          for (let d = 0; d < 10; d++) {
+            const el = document.createElement('div');
+            el.className = 'num';
+            el.textContent = d;
+            reel.appendChild(el);
+          }
         }
+
+        // Baseline shows 0 in the middle copy
+        const baseline = MIDDLE_OFFSET + 0;
+        reel.style.setProperty('--i', baseline);
+        reel.dataset.index = String(baseline);
+
         slot.appendChild(reel);
         counterEl.appendChild(slot);
-        reel.dataset.index = '10';
         reels.push(reel);
       }
 
-      // Animate one reel to target digit via shortest path
+      // Animate one reel to target digit via shortest path (up/down).
       function animateReel(reel, targetDigit) {
-        const curIdx = Number(reel.dataset.index || 10);
+        const curIdx = Number(reel.dataset.index || (MIDDLE_OFFSET + 0));
         const curVal = curIdx % 10;
 
         const forward = (targetDigit - curVal + 10) % 10;   // move down
@@ -197,6 +210,7 @@
         if (forward <= backward) { nextIdx = curIdx + forward; steps = forward; }
         else { nextIdx = curIdx - backward; steps = backward; }
 
+        // With 3 copies and baseline in the middle, nextIdx always stays in-range.
         const dur = BASE + PER_STEP * steps;
         reel.style.setProperty('--t', dur + 'ms');
         reel.style.setProperty('--i', nextIdx);
@@ -205,10 +219,12 @@
         const onEnd = (e) => {
           if (e.propertyName !== 'transform') return;
           reel.removeEventListener('transitionend', onEnd);
-          const baseline = 10 + (nextIdx % 10);
-          reel.style.setProperty('--t', '0ms');
+
+          // Normalize back to the middle copy (keeps plenty of headroom both ways)
+          const baseline = MIDDLE_OFFSET + (nextIdx % 10);
+          reel.style.setProperty('--t', '0ms');   // snap without visible movement
           reel.style.setProperty('--i', baseline);
-          void reel.offsetWidth;       // reflow
+          void reel.offsetWidth;                 // reflow
           reel.style.removeProperty('--t');
           reel.dataset.index = String(baseline);
         };
@@ -228,11 +244,11 @@
           const toDigit   = +nextStr[i];
 
           if (!animate) {
-            const baseline = 10 + toDigit;
+            const baseline = MIDDLE_OFFSET + toDigit;
             reel.style.setProperty('--t', '0ms');
             reel.style.setProperty('--i', baseline);
             reel.dataset.index = String(baseline);
-            void reel.offsetWidth;
+            void reel.offsetWidth;    // apply
             reel.style.removeProperty('--t');
           } else if (fromDigit !== toDigit) {
             animateReel(reel, toDigit);
@@ -241,7 +257,7 @@
         currentValue = next;
       }
 
-      // Size button to match panel width perfectly
+      // Exact button width = panel width
       (function sizeButtonToPanel() {
         const panel = document.querySelector('.panel');
         const btn = document.querySelector('.cta-button');
@@ -255,7 +271,7 @@
         if ('ResizeObserver' in window) new ResizeObserver(setWidth).observe(wrap);
       })();
 
-      // Networking helpers (same endpoints you used)
+      // Networking (same endpoints)
       async function fetchJSON(url, opts) {
         const res = await fetch(url, opts);
         if (!res.ok) throw new Error(await res.text());
@@ -285,7 +301,7 @@
         }
       });
 
-      // Init: first load (no animation), then poll
+      // Init
       (async function init() {
         try {
           const { count } = await fetchJSON('/api/count');
