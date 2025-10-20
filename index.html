@@ -6,21 +6,28 @@
     <link rel="icon" href="data:," />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <!-- Retro font for digits -->
-    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <!-- JetBrains Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
       :root {
         color-scheme: dark;
 
+        /* Layout + look */
         --slots: 8;
-        --digit-w: 56px;   /* slot width */
+        --digit-w: 64px;   /* slot width */
         --digit-h: 5rem;   /* slot height */
-        --gap: 12px;
+        --gap: 16px;
         --panel-pad: 14px;
-        --slot-bg: #191919;
-        --outline: #7a7a7a;
+
+        /* Colors */
+        --bg: #171717;
+        --grid: #202020;
         --panel-bg: #242424;
+        --slot-bg: #1b1b1b;
+        --slot-border: #4a4a4a;       /* outer stroke */
+        --slot-inner: #2a2a2a;        /* inner inset ring */
+        --digit: #8b5cf6;             /* violet digits */
       }
 
       html, body { height: 100%; }
@@ -34,11 +41,11 @@
           Ubuntu, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
         color: #fff;
 
-        /* Grid background: squares #171717, lines #202020 */
-        background-color: #171717;
+        /* Grid background */
+        background-color: var(--bg);
         background-image:
-          linear-gradient(#202020 1px, transparent 1px),
-          linear-gradient(90deg, #202020 1px, transparent 1px);
+          linear-gradient(var(--grid) 1px, transparent 1px),
+          linear-gradient(90deg, var(--grid) 1px, transparent 1px);
         background-size: 40px 40px;
       }
 
@@ -55,7 +62,7 @@
         text-transform: uppercase;
       }
 
-      /* Panel behind the counter (rounded top corners only) */
+      /* Panel behind counter (rounded top corners only) */
       .counter-wrap {
         position: relative;
         display: inline-block;
@@ -68,7 +75,7 @@
         z-index: 0;
       }
 
-      /* 8-slot counter */
+      /* 8-slot counter (custom reel) */
       .counter {
         position: relative;
         z-index: 1;
@@ -81,17 +88,20 @@
         width: var(--digit-w);
         height: var(--digit-h);
         background: var(--slot-bg);
-        border: 2px solid var(--outline);
-        border-radius: 8px;
-        overflow: hidden; /* window for the reel */
+        border-radius: 14px;
+        border: 2px solid var(--slot-border);               /* outer stroke */
+        box-shadow:
+          inset 0 0 0 2px var(--slot-inner),                 /* inner ring */
+          0 4px 14px rgba(0, 0, 0, 0.35);                    /* soft outer shadow */
+        overflow: hidden;                                     /* viewport for reel */
       }
 
-      /* Vertical reel: 0→9 repeated twice so we can animate both directions */
+      /* Reel holds 0..9 twice so we can animate shortest path up/down */
       .reel {
         position: absolute;
         top: 0; left: 0; right: 0;
         transform: translateY(calc(-1 * var(--i, 10) * var(--digit-h)));
-        transition: transform var(--t, 1100ms) cubic-bezier(.22,.8,.15,1);
+        transition: transform var(--t, 900ms) cubic-bezier(.22,.8,.15,1);
         will-change: transform;
       }
 
@@ -100,15 +110,17 @@
         place-items: center;
         height: var(--digit-h);
         width: 100%;
-        font-family: "VT323", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-        font-size: 2.4rem;   /* bigger looks nicer with VT323 */
-        font-weight: 400;
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        font-weight: 600;
+        font-size: 2.2rem;
         line-height: 1;
         font-variant-numeric: tabular-nums;
-        color: #fff;
+        color: var(--digit);
+        text-shadow:
+          0 0 12px rgba(139, 92, 246, 0.25),   /* subtle glow */
+          0 1px 0 rgba(0,0,0,0.4);            /* tiny lift */
       }
 
-      /* Respect reduced motion */
       @media (prefers-reduced-motion: reduce) {
         .reel { transition-duration: 0ms !important; }
       }
@@ -138,7 +150,7 @@
       <div class="counter-wrap">
         <div class="panel" aria-hidden="true"></div>
 
-        <!-- Custom 8-slot roller (0 at top, 9 at bottom) -->
+        <!-- Custom 8-slot roller -->
         <div id="counter" class="counter" aria-label="8-slot counter"></div>
       </div>
 
@@ -148,11 +160,11 @@
     <script>
       const SLOTS = 8;
 
-      // Slower animation tuning
-      const BASE = 650;      // ms base time
-      const PER_STEP = 260;  // ms added per digit step (0..9)
+      // Animation timing (slower)
+      const BASE = 800;   // ms base
+      const PER_STEP = 280; // ms per digit step (0..9)
 
-      // Build the 8 reels: each reel has 0..9 then 0..9 so we can animate up or down
+      // Build reels: each has 0..9 then 0..9 to allow both directions
       const counterEl = document.getElementById('counter');
       const reels = [];
       for (let i = 0; i < SLOTS; i++) {
@@ -160,13 +172,12 @@
         slot.className = 'slot';
         const reel = document.createElement('div');
         reel.className = 'reel';
-        reel.style.setProperty('--i', 10); // baseline (shows 0 with room to move)
-        // two sequences 0..9
+        reel.style.setProperty('--i', 10); // baseline shows 0
         for (let k = 0; k < 20; k++) {
-          const num = document.createElement('div');
-          num.className = 'num';
-          num.textContent = k % 10;
-          reel.appendChild(num);
+          const d = document.createElement('div');
+          d.className = 'num';
+          d.textContent = k % 10;
+          reel.appendChild(d);
         }
         slot.appendChild(reel);
         counterEl.appendChild(slot);
@@ -174,7 +185,7 @@
         reels.push(reel);
       }
 
-      // Animate one reel to target digit using the shortest path (up or down).
+      // Animate one reel to target digit via shortest path
       function animateReel(reel, targetDigit) {
         const curIdx = Number(reel.dataset.index || 10);
         const curVal = curIdx % 10;
@@ -183,15 +194,10 @@
         const backward = (curVal - targetDigit + 10) % 10;  // move up
 
         let nextIdx, steps;
-        if (forward <= backward) {
-          nextIdx = curIdx + forward;
-          steps = forward;
-        } else {
-          nextIdx = curIdx - backward;
-          steps = backward;
-        }
+        if (forward <= backward) { nextIdx = curIdx + forward; steps = forward; }
+        else { nextIdx = curIdx - backward; steps = backward; }
 
-        const dur = BASE + PER_STEP * steps; // slower overall
+        const dur = BASE + PER_STEP * steps;
         reel.style.setProperty('--t', dur + 'ms');
         reel.style.setProperty('--i', nextIdx);
         reel.dataset.index = String(nextIdx);
@@ -199,18 +205,17 @@
         const onEnd = (e) => {
           if (e.propertyName !== 'transform') return;
           reel.removeEventListener('transitionend', onEnd);
-
           const baseline = 10 + (nextIdx % 10);
           reel.style.setProperty('--t', '0ms');
           reel.style.setProperty('--i', baseline);
-          void reel.offsetWidth; // reflow
+          void reel.offsetWidth;       // reflow
           reel.style.removeProperty('--t');
           reel.dataset.index = String(baseline);
         };
         reel.addEventListener('transitionend', onEnd);
       }
 
-      // Render a number across all reels (left to right), animating each digit.
+      // Render a number across all reels (left→right)
       let currentValue = 0;
       function setNumber(n, { animate = true } = {}) {
         const next = Math.max(0, Math.floor(n));
@@ -236,7 +241,7 @@
         currentValue = next;
       }
 
-      // Button width = panel width (pixel-perfect)
+      // Size button to match panel width perfectly
       (function sizeButtonToPanel() {
         const panel = document.querySelector('.panel');
         const btn = document.querySelector('.cta-button');
@@ -250,7 +255,7 @@
         if ('ResizeObserver' in window) new ResizeObserver(setWidth).observe(wrap);
       })();
 
-      // Networking
+      // Networking helpers (same endpoints you used)
       async function fetchJSON(url, opts) {
         const res = await fetch(url, opts);
         if (!res.ok) throw new Error(await res.text());
@@ -280,7 +285,7 @@
         }
       });
 
-      // Init
+      // Init: first load (no animation), then poll
       (async function init() {
         try {
           const { count } = await fetchJSON('/api/count');
