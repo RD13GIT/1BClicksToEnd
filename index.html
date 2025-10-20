@@ -15,19 +15,16 @@
       :root {
         color-scheme: dark;
 
-        /* Slots config */
+        /* Wider slots */
         --slots: 8;
-        --digit-w: 2.6ch;
+        --digit-w: 56px;  /* increase/decrease to taste */
         --digit-h: 5rem;
-        --gap: 10px;
+        --gap: 12px;
         --border: 2px;
         --panel-pad: 14px;
 
-        /* Derived */
-        --counter-w: calc(
-          var(--slots) * (var(--digit-w) + 2 * var(--border))
-          + (var(--slots) - 1) * var(--gap)
-        );
+        /* Derived width (border-box: border is included in width) */
+        --counter-w: calc(var(--slots) * var(--digit-w) + (var(--slots) - 1) * var(--gap));
       }
 
       html, body { height: 100%; }
@@ -41,7 +38,7 @@
           Ubuntu, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
         color: #fff;
 
-        /* Grid background: squares #171717 with lines #202020 */
+        /* Grid background */
         background-color: #171717;
         background-image:
           linear-gradient(#202020 1px, transparent 1px),
@@ -78,51 +75,57 @@
         z-index: 0;
       }
 
-      /* 8 visible slots layer (always shown) */
+      /* Visible 8 slots */
       .slots {
         position: absolute;
         inset: 0;
         display: flex;
         gap: var(--gap);
         z-index: 1;
-        pointer-events: none; /* clicks pass through */
+        pointer-events: none;
       }
-
       .slot {
-        width: calc(var(--digit-w) + 2 * var(--border));
+        width: var(--digit-w);
         height: var(--digit-h);
         background: #191919;
         border: var(--border) solid #7a7a7a;
         border-radius: 8px;
       }
 
-      /* Odometer digits on top, right-aligned into the slots */
+      /* Odometer digits layer — fixed and right-aligned */
       .odometer {
         position: relative;
         z-index: 2;
         width: var(--counter-w);
         height: var(--digit-h);
-        display: flex;
-        justify-content: flex-end;    /* push digits into rightmost slots */
-        column-gap: var(--gap);
-        align-items: center;
+        display: block; /* container only */
         font-size: 2rem;
         font-weight: 800;
         line-height: 1;
         font-variant-numeric: tabular-nums;
         user-select: none;
       }
+      /* Make the inside a flex row so digits can right-align to the slots */
+      .odometer .odometer-inside {
+        display: flex !important;
+        justify-content: flex-end;
+        align-items: center;
+        gap: var(--gap);
+        height: 100%;
+      }
 
       /* Hide formatting marks (commas, etc.) */
       .odometer .odometer-formatting-mark { display: none !important; }
 
-      /* Force each digit to fit a slot; transparent so the slot boxes show */
+      /* Each digit sized to the slot; transparent so the slot box shows behind */
       .odometer .odometer-digit {
         width: var(--digit-w) !important;
         height: var(--digit-h) !important;
-        overflow: hidden;
         background: transparent !important;
         border: none !important;
+        overflow: hidden;
+        display: inline-block;
+        text-align: center;
       }
       .odometer .odometer-digit-spacer,
       .odometer .odometer-value,
@@ -133,7 +136,7 @@
         line-height: var(--digit-h) !important;
       }
 
-      /* Button outside the panel, no stroke; width matches the panel via JS */
+      /* Button outside, no stroke; width matches the panel via JS */
       .cta-button {
         display: block;
         box-sizing: border-box;
@@ -153,7 +156,7 @@
   </head>
   <body>
     <div class="stage">
-      <div class="title">Global Clicks</div>
+      <div class="title">GLOBAL CLICKS</div>
 
       <div class="counter-wrap">
         <div class="panel" aria-hidden="true"></div>
@@ -165,23 +168,20 @@
         </div>
 
         <!-- Odometer digits sit on top, aligned to the right -->
-        <div id="counter" class="odometer">0</div>
+        <div id="counter" class="odometer">00000000</div>
       </div>
 
       <button id="inc" class="cta-button" type="button">+1</button>
     </div>
 
     <script>
-      // Odometer options (optional)
-      window.odometerOptions = {
-        duration: 1000,
-        animation: 'slide'
-      };
+      // Odometer options
+      window.odometerOptions = { duration: 1000, animation: 'slide' };
 
       const counterEl = document.getElementById('counter');
       const incBtn = document.getElementById('inc');
 
-      // Pad to 8 digits for display (Odometer will still right-align digits)
+      // Always show 8 digits
       const pad8 = n => String(n).padStart(8, '0');
 
       async function fetchJSON(url, opts) {
@@ -193,8 +193,6 @@
       async function refresh() {
         try {
           const { count } = await fetchJSON('/api/count');
-          // Show padded value; Odometer may trim leading zeros visually,
-          // but slots stay visible and digits align right.
           counterEl.innerHTML = pad8(count);
         } catch (e) {
           console.error('poll error', e);
