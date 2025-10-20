@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <title>Global Counter</title>
 
-    <!-- Use jsDelivr without integrity to avoid SRI mismatch -->
+    <!-- Odometer -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/odometer@0.4.8/themes/odometer-theme-default.min.css">
     <script src="https://cdn.jsdelivr.net/npm/odometer@0.4.8/odometer.min.js" defer></script>
 
@@ -13,52 +13,134 @@
 
     <style>
       :root { color-scheme: dark; }
+
+      html, body { height: 100%; }
       * { box-sizing: border-box; }
+
       body {
         margin: 0;
-        height: 100vh;
         display: grid;
         place-items: center;
-        background: #0b1220;
         font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue",
           Ubuntu, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
-        color: #e5e7eb;
+        color: #fff;
+
+        /* Grid background: squares #171717 with lines #202020 */
+        background-color: #171717;
+        background-image:
+          linear-gradient(#202020 1px, transparent 1px),
+          linear-gradient(90deg, #202020 1px, transparent 1px);
+        background-size: 40px 40px; /* tile size */
       }
-      .card {
+
+      /* Stack layout for title, counter, button */
+      .stage {
         display: grid;
-        gap: 16px;
-        padding: 32px 40px;
-        border-radius: 16px;
-        background: rgba(255, 255, 255, 0.05);
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-        text-align: center;
-        width: min(92vw, 520px);
+        justify-items: center;
+        gap: 28px;
       }
-      .title { opacity: 0.8; font-size: 14px; letter-spacing: 0.08em; }
-      .odometer { font-size: 72px; font-weight: 800; line-height: 1; }
-      button {
-        font-size: 18px;
-        padding: 12px 18px;
-        border-radius: 12px;
-        border: none;
-        color: white;
-        background: #2563eb;
+
+      .title {
+        opacity: 0.85;
+        font-size: 14px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      /* Wrap to layer the behind panel */
+      .counter-wrap {
+        position: relative;
+        display: inline-block;
+      }
+      .panel {
+        position: absolute;
+        inset: -14px;                 /* space around the slots */
+        background: #242424;
+        border-radius: 16px 16px 0 0; /* smooth top corners only */
+        z-index: 0;
+      }
+
+      /* Odometer styled as 8 boxed slots */
+      .odometer {
+        position: relative;
+        z-index: 1;                   /* above the panel */
+        display: inline-flex;
+        gap: 10px;                    /* spacing between slots */
+        font-size: 2rem;
+        font-weight: 600;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        user-select: none;
+      }
+      /* Hide any formatting marks (commas, etc.) */
+      .odometer .odometer-formatting-mark { display: none !important; }
+
+      /* Each digit styled as a square with outline */
+      .odometer .odometer-digit {
+        width: 2.6ch;
+        height: 5rem;                 /* slot height */
+        line-height: 5rem;            /* keeps digits vertically centered */
+        background: #191919;          /* slot color */
+        border: 2px solid #7a7a7a;    /* gray outline */
+        border-radius: 8px;
+        overflow: hidden;             /* hide the scrolling ribbon overflow */
+        display: inline-block;
+      }
+
+      /* Ensure the scrolling ribbon respects our height */
+      .odometer .odometer-digit-spacer,
+      .odometer .odometer-value,
+      .odometer .odometer-digit-inner,
+      .odometer .odometer-ribbon,
+      .odometer .odometer-ribbon-inner {
+        height: 5rem;
+        line-height: 5rem;
+      }
+
+      /* Button outside the panel, same width as the panel, no stroke */
+      .cta-button {
+        display: block;
+        box-sizing: border-box;       /* width includes padding */
+        width: auto;                  /* set by JS to match panel width */
+        padding: 0.9rem 1.2rem;
+        background: #242424;
+        color: #fff;
+        border: none;                 /* no stroke */
+        border-radius: 8px;
+        font: inherit;
         cursor: pointer;
+        text-align: center;
       }
-      button:hover { background: #1d4ed8; }
-      button:active { transform: translateY(1px); }
+      .cta-button:hover { background: #2a2a2a; }
+      .cta-button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
     </style>
   </head>
   <body>
-    <div class="card">
+    <div class="stage">
       <div class="title">Global Clicks</div>
-      <div id="counter" class="odometer">0</div>
-      <button id="inc">+1</button>
+
+      <div class="counter-wrap">
+        <div class="panel" aria-hidden="true"></div>
+        <!-- Start with 8 digits -->
+        <div id="counter" class="odometer">00000000</div>
+      </div>
+
+      <!-- Button NOT in the behind panel -->
+      <button id="inc" class="cta-button" type="button">+1</button>
     </div>
 
     <script>
+      // Odometer options (optional)
+      window.odometerOptions = {
+        duration: 1000, // ms
+        animation: 'slide'
+      };
+
       const counterEl = document.getElementById('counter');
       const incBtn = document.getElementById('inc');
+
+      // Pad to 8 digits
+      const fmt = n => String(n).padStart(8, '0');
 
       async function fetchJSON(url, opts) {
         const res = await fetch(url, opts);
@@ -69,15 +151,37 @@
       async function refresh() {
         try {
           const { count } = await fetchJSON('/api/count');
-          counterEl.innerHTML = count;
+          counterEl.innerHTML = fmt(count);
         } catch (e) {
           console.error('poll error', e);
         }
       }
 
+      // Match button width to the panel exactly
+      (function sizeButtonToPanel() {
+        const panel = document.querySelector('.panel');
+        const btn = document.querySelector('.cta-button');
+        const target = document.querySelector('.counter-wrap');
+        if (!panel || !btn || !target) return;
+
+        const setButtonWidth = () => {
+          const w = Math.ceil(panel.getBoundingClientRect().width);
+          btn.style.width = w + 'px';
+        };
+
+        window.addEventListener('load', setButtonWidth);
+        window.addEventListener('resize', setButtonWidth);
+        if ('ResizeObserver' in window) {
+          const ro = new ResizeObserver(setButtonWidth);
+          ro.observe(target);
+        }
+      })();
+
       (async function init() {
+        // Initial load
         await refresh();
-        // Poll every 1s; when tab is hidden, back off to 5s
+
+        // Poll every 1s; back off to 5s when tab is hidden
         let timer;
         const schedule = () => {
           clearInterval(timer);
@@ -87,11 +191,12 @@
         document.addEventListener('visibilitychange', schedule);
         schedule();
 
+        // Increment
         incBtn.addEventListener('click', async () => {
           incBtn.disabled = true;
           try {
             const { count } = await fetchJSON('/api/increment', { method: 'POST' });
-            counterEl.innerHTML = count;
+            counterEl.innerHTML = fmt(count);
           } catch (err) {
             console.error(err);
             alert('Failed to increment. Try again.');
