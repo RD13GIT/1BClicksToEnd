@@ -6,12 +6,15 @@
     <link rel="icon" href="data:," />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
+    <!-- Retro font for digits -->
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+
     <style>
       :root {
         color-scheme: dark;
 
         --slots: 8;
-        --digit-w: 56px;   /* slot width (tweak here) */
+        --digit-w: 56px;   /* slot width */
         --digit-h: 5rem;   /* slot height */
         --gap: 12px;
         --panel-pad: 14px;
@@ -87,9 +90,8 @@
       .reel {
         position: absolute;
         top: 0; left: 0; right: 0;
-        /* --i is the virtual index in the (0..9 0..9) list */
         transform: translateY(calc(-1 * var(--i, 10) * var(--digit-h)));
-        transition: transform var(--t, 500ms) cubic-bezier(.2,.7,.2,1);
+        transition: transform var(--t, 1100ms) cubic-bezier(.22,.8,.15,1);
         will-change: transform;
       }
 
@@ -98,11 +100,17 @@
         place-items: center;
         height: var(--digit-h);
         width: 100%;
-        font-size: 2rem;
-        font-weight: 800;
+        font-family: "VT323", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        font-size: 2.4rem;   /* bigger looks nicer with VT323 */
+        font-weight: 400;
         line-height: 1;
         font-variant-numeric: tabular-nums;
         color: #fff;
+      }
+
+      /* Respect reduced motion */
+      @media (prefers-reduced-motion: reduce) {
+        .reel { transition-duration: 0ms !important; }
       }
 
       /* Button outside, no stroke; square top corners */
@@ -140,6 +148,10 @@
     <script>
       const SLOTS = 8;
 
+      // Slower animation tuning
+      const BASE = 650;      // ms base time
+      const PER_STEP = 260;  // ms added per digit step (0..9)
+
       // Build the 8 reels: each reel has 0..9 then 0..9 so we can animate up or down
       const counterEl = document.getElementById('counter');
       const reels = [];
@@ -148,8 +160,7 @@
         slot.className = 'slot';
         const reel = document.createElement('div');
         reel.className = 'reel';
-        // initial virtual index = 10 + 0 (shows 0 centered with room to move)
-        reel.style.setProperty('--i', 10);
+        reel.style.setProperty('--i', 10); // baseline (shows 0 with room to move)
         // two sequences 0..9
         for (let k = 0; k < 20; k++) {
           const num = document.createElement('div');
@@ -159,46 +170,41 @@
         }
         slot.appendChild(reel);
         counterEl.appendChild(slot);
-        // track current virtual index
-        reel.dataset.index = '10'; // 10 + currentValue(0)
+        reel.dataset.index = '10';
         reels.push(reel);
       }
 
       // Animate one reel to target digit using the shortest path (up or down).
-      function animateReel(reel, targetDigit, stepsDuration = [250, 130]) {
+      function animateReel(reel, targetDigit) {
         const curIdx = Number(reel.dataset.index || 10);
         const curVal = curIdx % 10;
 
-        // steps forward (down) vs backward (up)
-        const forward = (targetDigit - curVal + 10) % 10;
-        const backward = (curVal - targetDigit + 10) % 10;
+        const forward = (targetDigit - curVal + 10) % 10;   // move down
+        const backward = (curVal - targetDigit + 10) % 10;  // move up
 
         let nextIdx, steps;
         if (forward <= backward) {
-          nextIdx = curIdx + forward;     // move down
+          nextIdx = curIdx + forward;
           steps = forward;
         } else {
-          nextIdx = curIdx - backward;    // move up
+          nextIdx = curIdx - backward;
           steps = backward;
         }
 
-        // Duration scales with steps (snappier for small changes)
-        const dur = stepsDuration[0] + stepsDuration[1] * steps; // ms
+        const dur = BASE + PER_STEP * steps; // slower overall
         reel.style.setProperty('--t', dur + 'ms');
         reel.style.setProperty('--i', nextIdx);
         reel.dataset.index = String(nextIdx);
 
-        // After the animation, normalize index back to baseline (10 + target)
         const onEnd = (e) => {
           if (e.propertyName !== 'transform') return;
           reel.removeEventListener('transitionend', onEnd);
 
           const baseline = 10 + (nextIdx % 10);
-          reel.style.setProperty('--t', '0ms');       // disable transition for snap-back
-          reel.style.setProperty('--i', baseline);    // visually identical
-          // Force reflow so the 0ms takes effect
-          void reel.offsetWidth;
-          reel.style.removeProperty('--t');           // restore default timing
+          reel.style.setProperty('--t', '0ms');
+          reel.style.setProperty('--i', baseline);
+          void reel.offsetWidth; // reflow
+          reel.style.removeProperty('--t');
           reel.dataset.index = String(baseline);
         };
         reel.addEventListener('transitionend', onEnd);
@@ -217,12 +223,10 @@
           const toDigit   = +nextStr[i];
 
           if (!animate) {
-            // Snap to baseline (10 + toDigit) without animation
             const baseline = 10 + toDigit;
             reel.style.setProperty('--t', '0ms');
             reel.style.setProperty('--i', baseline);
             reel.dataset.index = String(baseline);
-            // force and clear
             void reel.offsetWidth;
             reel.style.removeProperty('--t');
           } else if (fromDigit !== toDigit) {
@@ -238,16 +242,12 @@
         const btn = document.querySelector('.cta-button');
         const wrap = document.querySelector('.counter-wrap');
         if (!panel || !btn || !wrap) return;
-
         const setWidth = () => {
           btn.style.width = Math.ceil(panel.getBoundingClientRect().width) + 'px';
         };
         window.addEventListener('load', setWidth);
         window.addEventListener('resize', setWidth);
-        if ('ResizeObserver' in window) {
-          const ro = new ResizeObserver(setWidth);
-          ro.observe(wrap);
-        }
+        if ('ResizeObserver' in window) new ResizeObserver(setWidth).observe(wrap);
       })();
 
       // Networking
@@ -260,7 +260,6 @@
       async function refresh() {
         try {
           const { count } = await fetchJSON('/api/count');
-          // Animate only if value changed
           if (count !== currentValue) setNumber(count, { animate: true });
         } catch (e) {
           console.error('poll error', e);
@@ -281,13 +280,12 @@
         }
       });
 
-      // Init: load once (no animation), then poll
+      // Init
       (async function init() {
         try {
           const { count } = await fetchJSON('/api/count');
           setNumber(count, { animate: false });
-        } catch { /* ignore first load errors */ }
-
+        } catch {}
         let timer;
         const schedule = () => {
           clearInterval(timer);
