@@ -12,7 +12,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <style>
-      :root { color-scheme: dark; }
+      :root {
+        color-scheme: dark;
+
+        /* Slots config */
+        --slots: 8;
+        --digit-w: 2.6ch;
+        --digit-h: 5rem;
+        --gap: 10px;
+        --border: 2px;
+        --panel-pad: 14px;
+
+        /* Derived */
+        --counter-w: calc(
+          var(--slots) * (var(--digit-w) + 2 * var(--border))
+          + (var(--slots) - 1) * var(--gap)
+        );
+      }
 
       html, body { height: 100%; }
       * { box-sizing: border-box; }
@@ -30,10 +46,9 @@
         background-image:
           linear-gradient(#202020 1px, transparent 1px),
           linear-gradient(90deg, #202020 1px, transparent 1px);
-        background-size: 40px 40px; /* tile size */
+        background-size: 40px 40px;
       }
 
-      /* Stack layout for title, counter, button */
       .stage {
         display: grid;
         justify-items: center;
@@ -47,65 +62,86 @@
         text-transform: uppercase;
       }
 
-      /* Wrap to layer the behind panel */
+      /* Wrapper with panel behind */
       .counter-wrap {
         position: relative;
         display: inline-block;
+        width: var(--counter-w);
+        height: var(--digit-h);
       }
+
       .panel {
         position: absolute;
-        inset: -14px;                 /* space around the slots */
+        inset: calc(-1 * var(--panel-pad));
         background: #242424;
-        border-radius: 16px 16px 0 0; /* smooth top corners only */
+        border-radius: 16px 16px 0 0; /* smooth top corners */
         z-index: 0;
       }
 
-      /* Odometer styled as 8 boxed slots */
+      /* 8 visible slots layer (always shown) */
+      .slots {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        gap: var(--gap);
+        z-index: 1;
+        pointer-events: none; /* clicks pass through */
+      }
+
+      .slot {
+        width: calc(var(--digit-w) + 2 * var(--border));
+        height: var(--digit-h);
+        background: #191919;
+        border: var(--border) solid #7a7a7a;
+        border-radius: 8px;
+      }
+
+      /* Odometer digits on top, right-aligned into the slots */
       .odometer {
         position: relative;
-        z-index: 1;                   /* above the panel */
-        display: inline-flex;
-        gap: 10px;                    /* spacing between slots */
+        z-index: 2;
+        width: var(--counter-w);
+        height: var(--digit-h);
+        display: flex;
+        justify-content: flex-end;    /* push digits into rightmost slots */
+        column-gap: var(--gap);
+        align-items: center;
         font-size: 2rem;
-        font-weight: 600;
+        font-weight: 800;
         line-height: 1;
         font-variant-numeric: tabular-nums;
         user-select: none;
       }
-      /* Hide any formatting marks (commas, etc.) */
+
+      /* Hide formatting marks (commas, etc.) */
       .odometer .odometer-formatting-mark { display: none !important; }
 
-      /* Each digit styled as a square with outline */
+      /* Force each digit to fit a slot; transparent so the slot boxes show */
       .odometer .odometer-digit {
-        width: 2.6ch;
-        height: 5rem;                 /* slot height */
-        line-height: 5rem;            /* keeps digits vertically centered */
-        background: #191919;          /* slot color */
-        border: 2px solid #7a7a7a;    /* gray outline */
-        border-radius: 8px;
-        overflow: hidden;             /* hide the scrolling ribbon overflow */
-        display: inline-block;
+        width: var(--digit-w) !important;
+        height: var(--digit-h) !important;
+        overflow: hidden;
+        background: transparent !important;
+        border: none !important;
       }
-
-      /* Ensure the scrolling ribbon respects our height */
       .odometer .odometer-digit-spacer,
       .odometer .odometer-value,
       .odometer .odometer-digit-inner,
       .odometer .odometer-ribbon,
       .odometer .odometer-ribbon-inner {
-        height: 5rem;
-        line-height: 5rem;
+        height: var(--digit-h) !important;
+        line-height: var(--digit-h) !important;
       }
 
-      /* Button outside the panel, same width as the panel, no stroke */
+      /* Button outside the panel, no stroke; width matches the panel via JS */
       .cta-button {
         display: block;
-        box-sizing: border-box;       /* width includes padding */
-        width: auto;                  /* set by JS to match panel width */
+        box-sizing: border-box;
+        width: auto; /* set by JS */
         padding: 0.9rem 1.2rem;
         background: #242424;
         color: #fff;
-        border: none;                 /* no stroke */
+        border: none;
         border-radius: 8px;
         font: inherit;
         cursor: pointer;
@@ -121,26 +157,32 @@
 
       <div class="counter-wrap">
         <div class="panel" aria-hidden="true"></div>
-        <!-- Start with 8 digits -->
-        <div id="counter" class="odometer">00000000</div>
+
+        <!-- 8 slot boxes (always visible) -->
+        <div class="slots" aria-hidden="true">
+          <span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span>
+          <span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span>
+        </div>
+
+        <!-- Odometer digits sit on top, aligned to the right -->
+        <div id="counter" class="odometer">0</div>
       </div>
 
-      <!-- Button NOT in the behind panel -->
       <button id="inc" class="cta-button" type="button">+1</button>
     </div>
 
     <script>
       // Odometer options (optional)
       window.odometerOptions = {
-        duration: 1000, // ms
+        duration: 1000,
         animation: 'slide'
       };
 
       const counterEl = document.getElementById('counter');
       const incBtn = document.getElementById('inc');
 
-      // Pad to 8 digits
-      const fmt = n => String(n).padStart(8, '0');
+      // Pad to 8 digits for display (Odometer will still right-align digits)
+      const pad8 = n => String(n).padStart(8, '0');
 
       async function fetchJSON(url, opts) {
         const res = await fetch(url, opts);
@@ -151,13 +193,15 @@
       async function refresh() {
         try {
           const { count } = await fetchJSON('/api/count');
-          counterEl.innerHTML = fmt(count);
+          // Show padded value; Odometer may trim leading zeros visually,
+          // but slots stay visible and digits align right.
+          counterEl.innerHTML = pad8(count);
         } catch (e) {
           console.error('poll error', e);
         }
       }
 
-      // Match button width to the panel exactly
+      // Match button width to the behind panel exactly
       (function sizeButtonToPanel() {
         const panel = document.querySelector('.panel');
         const btn = document.querySelector('.cta-button');
@@ -178,7 +222,6 @@
       })();
 
       (async function init() {
-        // Initial load
         await refresh();
 
         // Poll every 1s; back off to 5s when tab is hidden
@@ -191,12 +234,11 @@
         document.addEventListener('visibilitychange', schedule);
         schedule();
 
-        // Increment
         incBtn.addEventListener('click', async () => {
           incBtn.disabled = true;
           try {
             const { count } = await fetchJSON('/api/increment', { method: 'POST' });
-            counterEl.innerHTML = fmt(count);
+            counterEl.innerHTML = pad8(count);
           } catch (err) {
             console.error(err);
             alert('Failed to increment. Try again.');
