@@ -13,7 +13,7 @@
       :root {
         color-scheme: dark;
 
-        /* Layout + look */
+        /* Counter layout */
         --slots: 8;
         --digit-w: 64px;   /* slot width */
         --digit-h: 5rem;   /* slot height */
@@ -25,8 +25,8 @@
         --grid: #202020;
         --panel-bg: #242424;
         --slot-bg: #1b1b1b;
-        --slot-border: #4a4a4a;       /* outer stroke */
-        --digit: #8b5cf6;             /* violet digits */
+        --slot-border: #4a4a4a;
+        --digit: #8b5cf6; /* violet */
       }
 
       html, body { height: 100%; }
@@ -88,14 +88,14 @@
         height: var(--digit-h);
         background: var(--slot-bg);
         border-radius: 14px;
-        border: 2px solid var(--slot-border);               /* outer stroke */
+        border: 2px solid var(--slot-border); /* outer stroke */
         box-shadow:
-          inset 0 0 0 2px var(--slot-bg),                    /* inner ring same as tile */
-          0 4px 14px rgba(0, 0, 0, 0.35);                    /* soft outer shadow */
-        overflow: hidden;                                     /* viewport for reel */
+          inset 0 0 0 2px var(--slot-bg),       /* inner ring same as tile */
+          0 4px 14px rgba(0, 0, 0, 0.35);       /* soft outer shadow */
+        overflow: hidden;                       /* viewport for reel */
       }
 
-      /* Reel holds 0..9 three times so 0 is always below 9 */
+      /* Reel holds 0..9 three times so 0 is always below 9 (instant carry) */
       .reel {
         position: absolute;
         top: 0; left: 0; right: 0;
@@ -140,20 +140,100 @@
       }
       .cta-button:hover { background: #2a2a2a; }
       .cta-button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+      /* Leaderboard */
+      .leaderboard {
+        display: grid;
+        gap: 12px;
+        width: auto; /* set by JS to match panel width */
+      }
+
+      .lb-title {
+        opacity: 0.8;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        text-align: left;
+      }
+
+      .lb-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 10px;
+      }
+
+      .lb-row {
+        display: grid;
+        grid-template-columns: 40px 1fr auto;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        background: var(--slot-bg);
+        border: 2px solid var(--slot-border);
+        box-shadow:
+          inset 0 0 0 2px var(--slot-bg),
+          0 4px 14px rgba(0, 0, 0, 0.35);
+        border-radius: 12px;
+      }
+
+      .lb-rank {
+        display: grid;
+        place-items: center;
+        width: 28px; height: 28px;
+        border-radius: 8px;
+        background: #2a2a2a;
+        color: #cbd5e1;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .lb-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #e5e7eb;
+        font-size: 16px;
+      }
+
+      .lb-count {
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        color: var(--digit);
+        font-weight: 600;
+        font-size: 18px;
+        text-align: right;
+        min-width: 6ch;
+      }
+
+      .empty {
+        opacity: 0.7;
+        text-align: center;
+        padding: 8px 0;
+      }
     </style>
   </head>
   <body>
     <div class="stage">
       <div class="title">GLOBAL CLICKS</div>
 
+      <!-- Counter -->
       <div class="counter-wrap">
         <div class="panel" aria-hidden="true"></div>
-
-        <!-- Custom 8-slot roller -->
         <div id="counter" class="counter" aria-label="8-slot counter"></div>
       </div>
 
+      <!-- Button (same width as panel) -->
       <button id="inc" class="cta-button" type="button">+1</button>
+
+      <!-- Leaderboard (same width as panel) -->
+      <section class="leaderboard" id="leaderboard">
+        <div class="lb-title">Leaderboard</div>
+        <ol class="lb-list" id="lb-list">
+          <!-- rows injected by JS -->
+        </ol>
+      </section>
     </div>
 
     <script>
@@ -163,12 +243,13 @@
       const BASE = 900;      // ms base
       const PER_STEP = 300;  // ms per digit step (0..9)
 
-      // Build reels: 0..9 repeated 3x so 0 is always under 9.
+      // Reel constants: 0..9 repeated 3x so 0 is always below 9
       const COPIES = 3;
       const COPY_SIZE = 10;
-      const REEL_LEN = COPY_SIZE * COPIES;   // 30
-      const MIDDLE_OFFSET = COPY_SIZE;       // 10 -> middle copy
+      const REEL_LEN = COPY_SIZE * COPIES;  // 30
+      const MIDDLE_OFFSET = COPY_SIZE;      // 10 -> middle copy
 
+      // Build counter reels
       const counterEl = document.getElementById('counter');
       const reels = [];
 
@@ -178,7 +259,6 @@
         const reel = document.createElement('div');
         reel.className = 'reel';
 
-        // Build digits 0..9, 3 times
         for (let c = 0; c < COPIES; c++) {
           for (let d = 0; d < 10; d++) {
             const el = document.createElement('div');
@@ -187,9 +267,7 @@
             reel.appendChild(el);
           }
         }
-
-        // Baseline shows 0 in the middle copy
-        const baseline = MIDDLE_OFFSET + 0;
+        const baseline = MIDDLE_OFFSET + 0; // show 0 initially
         reel.style.setProperty('--i', baseline);
         reel.dataset.index = String(baseline);
 
@@ -198,7 +276,6 @@
         reels.push(reel);
       }
 
-      // Animate one reel to target digit via shortest path (up/down).
       function animateReel(reel, targetDigit) {
         const curIdx = Number(reel.dataset.index || (MIDDLE_OFFSET + 0));
         const curVal = curIdx % 10;
@@ -210,7 +287,6 @@
         if (forward <= backward) { nextIdx = curIdx + forward; steps = forward; }
         else { nextIdx = curIdx - backward; steps = backward; }
 
-        // With 3 copies and baseline in the middle, nextIdx always stays in-range.
         const dur = BASE + PER_STEP * steps;
         reel.style.setProperty('--t', dur + 'ms');
         reel.style.setProperty('--i', nextIdx);
@@ -219,19 +295,16 @@
         const onEnd = (e) => {
           if (e.propertyName !== 'transform') return;
           reel.removeEventListener('transitionend', onEnd);
-
-          // Normalize back to the middle copy (keeps plenty of headroom both ways)
           const baseline = MIDDLE_OFFSET + (nextIdx % 10);
-          reel.style.setProperty('--t', '0ms');   // snap without visible movement
+          reel.style.setProperty('--t', '0ms');
           reel.style.setProperty('--i', baseline);
-          void reel.offsetWidth;                 // reflow
+          void reel.offsetWidth; // reflow
           reel.style.removeProperty('--t');
           reel.dataset.index = String(baseline);
         };
         reel.addEventListener('transitionend', onEnd);
       }
 
-      // Render a number across all reels (left→right)
       let currentValue = 0;
       function setNumber(n, { animate = true } = {}) {
         const next = Math.max(0, Math.floor(n));
@@ -248,7 +321,7 @@
             reel.style.setProperty('--t', '0ms');
             reel.style.setProperty('--i', baseline);
             reel.dataset.index = String(baseline);
-            void reel.offsetWidth;    // apply
+            void reel.offsetWidth;
             reel.style.removeProperty('--t');
           } else if (fromDigit !== toDigit) {
             animateReel(reel, toDigit);
@@ -257,42 +330,96 @@
         currentValue = next;
       }
 
-      // Exact button width = panel width
-      (function sizeButtonToPanel() {
+      // Size elements to match the behind panel width
+      (function sizeToPanel() {
         const panel = document.querySelector('.panel');
-        const btn = document.querySelector('.cta-button');
         const wrap = document.querySelector('.counter-wrap');
-        if (!panel || !btn || !wrap) return;
+        const elements = [
+          document.querySelector('.cta-button'),
+          document.querySelector('#leaderboard')
+        ].filter(Boolean);
+
+        if (!panel || !wrap || !elements.length) return;
+
         const setWidth = () => {
-          btn.style.width = Math.ceil(panel.getBoundingClientRect().width) + 'px';
+          const w = Math.ceil(panel.getBoundingClientRect().width);
+          elements.forEach(el => el.style.width = w + 'px');
         };
         window.addEventListener('load', setWidth);
         window.addEventListener('resize', setWidth);
         if ('ResizeObserver' in window) new ResizeObserver(setWidth).observe(wrap);
       })();
 
-      // Networking (same endpoints)
+      // Networking helpers
       async function fetchJSON(url, opts) {
         const res = await fetch(url, opts);
         if (!res.ok) throw new Error(await res.text());
         return res.json();
       }
 
-      async function refresh() {
+      // Global count refresh
+      async function refreshCount() {
         try {
           const { count } = await fetchJSON('/api/count');
           if (count !== currentValue) setNumber(count, { animate: true });
         } catch (e) {
-          console.error('poll error', e);
+          console.error('poll error (count)', e);
         }
       }
 
+      // Leaderboard rendering
+      const lbList = document.getElementById('lb-list');
+      function renderLeaderboard(leaders = []) {
+        lbList.innerHTML = '';
+        if (!leaders.length) {
+          const li = document.createElement('li');
+          li.className = 'empty';
+          li.textContent = 'No entries yet.';
+          lbList.appendChild(li);
+          return;
+        }
+
+        leaders.slice(0, 10).forEach((row, idx) => {
+          const li = document.createElement('li');
+          li.className = 'lb-row';
+
+          const rank = document.createElement('div');
+          rank.className = 'lb-rank';
+          rank.textContent = idx + 1;
+
+          const name = document.createElement('div');
+          name.className = 'lb-name';
+          name.textContent = row.name || 'Anonymous';
+
+          const count = document.createElement('div');
+          count.className = 'lb-count';
+          count.textContent = (row.count ?? 0).toLocaleString();
+
+          li.append(rank, name, count);
+          lbList.appendChild(li);
+        });
+      }
+
+      // Leaderboard fetch
+      async function refreshLeaderboard() {
+        try {
+          const { leaders } = await fetchJSON('/api/leaderboard');
+          renderLeaderboard(Array.isArray(leaders) ? leaders : []);
+        } catch (e) {
+          console.error('poll error (leaderboard)', e);
+          // Optional: keep previous rows on error
+        }
+      }
+
+      // Increment button
       const incBtn = document.getElementById('inc');
       incBtn.addEventListener('click', async () => {
         incBtn.disabled = true;
         try {
           const { count } = await fetchJSON('/api/increment', { method: 'POST' });
           setNumber(count, { animate: true });
+          // Refresh leaderboard after increment
+          refreshLeaderboard();
         } catch (err) {
           console.error(err);
           alert('Failed to increment. Try again.');
@@ -303,15 +430,22 @@
 
       // Init
       (async function init() {
+        // First loads
         try {
           const { count } = await fetchJSON('/api/count');
           setNumber(count, { animate: false });
         } catch {}
-        let timer;
+        refreshLeaderboard();
+
+        // Polling
+        let countTimer, lbTimer;
         const schedule = () => {
-          clearInterval(timer);
-          const ms = document.hidden ? 5000 : 1000;
-          timer = setInterval(refresh, ms);
+          clearInterval(countTimer);
+          clearInterval(lbTimer);
+          const countMs = document.hidden ? 5000 : 1000;
+          const lbMs    = document.hidden ? 15000 : 5000;
+          countTimer = setInterval(refreshCount, countMs);
+          lbTimer    = setInterval(refreshLeaderboard, lbMs);
         };
         document.addEventListener('visibilitychange', schedule);
         schedule();
