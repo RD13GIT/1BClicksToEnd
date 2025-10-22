@@ -6,7 +6,7 @@
     <link rel="icon" href="data:," />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <!-- JetBrains Mono for digits -->
+    <!-- JetBrains Mono -->
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 
     <style>
@@ -15,8 +15,8 @@
 
         /* Counter layout */
         --slots: 8;
-        --digit-w: 64px;
-        --digit-h: 5rem;
+        --digit-w: 64px;   /* slot width */
+        --digit-h: 5rem;   /* slot height */
         --gap: 16px;
         --panel-pad: 14px;
 
@@ -26,7 +26,7 @@
         --panel-bg: #242424;
         --slot-bg: #1b1b1b;
         --slot-border: #4a4a4a;
-        --digit: #8b5cf6;
+        --digit: #8b5cf6; /* violet */
       }
 
       html, body { height: 100%; }
@@ -67,11 +67,13 @@
         gap: 28px;
         align-items: start;
         grid-template-columns: 1fr; /* mobile: stack */
+        width: 100%;
       }
       @media (min-width: 900px) {
         .columns {
-          grid-template-columns: auto auto; /* widths from content */
-          justify-content: center;
+          /* Left column has a fixed comfy range; right column is the counter width */
+          grid-template-columns: minmax(260px, 340px) auto;
+          justify-content: center; /* center the whole pair */
           column-gap: 40px;
         }
       }
@@ -80,14 +82,16 @@
       .main {
         display: grid;
         gap: 16px;
-        justify-items: center; /* keeps button/name same width as panel (set by JS) */
+        justify-items: center; /* keeps button/name same width as panel (JS sets width) */
       }
 
+      /* Leaderboard: narrower and right-aligned within its column to pull it closer to center */
       .leaderboard {
         display: grid;
         gap: 12px;
-        width: auto; /* JS sets to match panel width */
-        justify-self: center; /* center within its grid column */
+        width: 100%;
+        max-width: 340px;         /* cap width */
+        justify-self: end;        /* nudge closer to center line */
       }
 
       .lb-title {
@@ -108,7 +112,8 @@
 
       .lb-row {
         display: grid;
-        grid-template-columns: 40px 1fr auto;
+        /* tighter name column to keep usernames from taking too much space */
+        grid-template-columns: 36px minmax(0, 14ch) auto;
         align-items: center;
         gap: 12px;
         padding: 10px 14px;
@@ -138,6 +143,7 @@
         white-space: nowrap;
         color: #e5e7eb;
         font-size: 16px;
+        max-width: 14ch; /* clamp visible name length */
       }
 
       .lb-count {
@@ -146,7 +152,7 @@
         font-weight: 600;
         font-size: 18px;
         text-align: right;
-        min-width: 6ch;
+        min-width: 5ch; /* slightly tighter */
       }
 
       .empty {
@@ -155,7 +161,7 @@
         padding: 8px 0;
       }
 
-      /* Panel behind counter (rounded top only) */
+      /* Panel behind counter (rounded top corners only) */
       .counter-wrap {
         position: relative;
         display: inline-block;
@@ -168,7 +174,7 @@
         z-index: 0;
       }
 
-      /* Counter reels */
+      /* 8-slot counter (custom reel) */
       .counter {
         position: relative;
         z-index: 1;
@@ -186,7 +192,7 @@
         box-shadow:
           inset 0 0 0 2px var(--slot-bg),
           0 4px 14px rgba(0, 0, 0, 0.35);
-        overflow: hidden;
+        overflow: hidden; /* viewport for reel */
       }
 
       /* Reel holds 0..9 three times so 0 is always below 9 (instant carry) */
@@ -218,16 +224,16 @@
         .reel { transition-duration: 0ms !important; }
       }
 
-      /* Button */
+      /* Button outside, no stroke; square top corners */
       .cta-button {
         display: block;
         box-sizing: border-box;
-        width: auto; /* set by JS to match panel width */
+        width: auto;                /* set by JS to match the panel width */
         padding: 0.9rem 1.2rem;
         background: #242424;
         color: #fff;
         border: none;
-        border-radius: 0 0 8px 8px;
+        border-radius: 0 0 8px 8px; /* square top, rounded bottom */
         font: inherit;
         cursor: pointer;
         text-align: center;
@@ -283,18 +289,27 @@
 
     <script>
       const SLOTS = 8;
-      const BASE = 900, PER_STEP = 300;
-      const COPIES = 3, COPY_SIZE = 10, REEL_LEN = COPY_SIZE * COPIES, MIDDLE_OFFSET = COPY_SIZE;
 
+      // Animation timing (tweak to taste)
+      const BASE = 900;      // ms base
+      const PER_STEP = 300;  // ms per digit step (0..9)
+
+      // Reel constants: 0..9 repeated 3x so 0 is always below 9
+      const COPIES = 3;
+      const COPY_SIZE = 10;
+      const REEL_LEN = COPY_SIZE * COPIES;  // 30
+      const MIDDLE_OFFSET = COPY_SIZE;      // 10 -> middle copy
+
+      // Build counter reels
       const counterEl = document.getElementById('counter');
       const reels = [];
 
-      // Build reels
       for (let i = 0; i < SLOTS; i++) {
         const slot = document.createElement('div');
         slot.className = 'slot';
         const reel = document.createElement('div');
         reel.className = 'reel';
+
         for (let c = 0; c < COPIES; c++) {
           for (let d = 0; d < 10; d++) {
             const el = document.createElement('div');
@@ -306,6 +321,7 @@
         const baseline = MIDDLE_OFFSET + 0; // show 0 initially
         reel.style.setProperty('--i', baseline);
         reel.dataset.index = String(baseline);
+
         slot.appendChild(reel);
         counterEl.appendChild(slot);
         reels.push(reel);
@@ -314,15 +330,19 @@
       function animateReel(reel, targetDigit) {
         const curIdx = Number(reel.dataset.index || (MIDDLE_OFFSET + 0));
         const curVal = curIdx % 10;
-        const forward = (targetDigit - curVal + 10) % 10;
-        const backward = (curVal - targetDigit + 10) % 10;
+
+        const forward = (targetDigit - curVal + 10) % 10;   // move down
+        const backward = (curVal - targetDigit + 10) % 10;  // move up
+
         let nextIdx, steps;
         if (forward <= backward) { nextIdx = curIdx + forward; steps = forward; }
         else { nextIdx = curIdx - backward; steps = backward; }
+
         const dur = BASE + PER_STEP * steps;
         reel.style.setProperty('--t', dur + 'ms');
         reel.style.setProperty('--i', nextIdx);
         reel.dataset.index = String(nextIdx);
+
         const onEnd = (e) => {
           if (e.propertyName !== 'transform') return;
           reel.removeEventListener('transitionend', onEnd);
@@ -341,10 +361,12 @@
         const next = Math.max(0, Math.floor(n));
         const curStr  = String(currentValue).padStart(SLOTS, '0');
         const nextStr = String(next).padStart(SLOTS, '0');
+
         for (let i = 0; i < SLOTS; i++) {
           const reel = reels[i];
           const fromDigit = +curStr[i];
           const toDigit   = +nextStr[i];
+
           if (!animate) {
             const baseline = MIDDLE_OFFSET + toDigit;
             reel.style.setProperty('--t', '0ms');
@@ -359,14 +381,14 @@
         currentValue = next;
       }
 
-      // Size elements to match the panel width (right column drives width)
+      // Size elements to match the behind panel width — only the right column (button + name)
       (function sizeToPanel() {
         const panel = document.querySelector('.panel');
         const wrap = document.querySelector('.counter-wrap');
         const elements = [
           document.querySelector('.cta-button'),
-          document.querySelector('#name-settings'),
-          document.querySelector('#leaderboard')
+          document.querySelector('#name-settings')
+          // NOTE: leaderboard removed here so it can be narrower than the counter
         ].filter(Boolean);
 
         if (!panel || !wrap || !elements.length) return;
@@ -387,7 +409,7 @@
         return res.json();
       }
 
-      // Count
+      // Global count refresh
       async function refreshCount() {
         try {
           const { count } = await fetchJSON('/api/count');
@@ -397,7 +419,7 @@
         }
       }
 
-      // Leaderboard
+      // Leaderboard rendering
       const lbList = document.getElementById('lb-list');
       function renderLeaderboard(leaders = []) {
         lbList.innerHTML = '';
@@ -408,22 +430,29 @@
           lbList.appendChild(li);
           return;
         }
+
         leaders.slice(0, 10).forEach((row, idx) => {
           const li = document.createElement('li');
           li.className = 'lb-row';
+
           const rank = document.createElement('div');
           rank.className = 'lb-rank';
           rank.textContent = idx + 1;
+
           const name = document.createElement('div');
           name.className = 'lb-name';
           name.textContent = row.name || 'Anonymous';
+
           const count = document.createElement('div');
           count.className = 'lb-count';
           count.textContent = (row.count ?? 0).toLocaleString();
+
           li.append(rank, name, count);
           lbList.appendChild(li);
         });
       }
+
+      // Leaderboard fetch
       async function refreshLeaderboard() {
         try {
           const { leaders } = await fetchJSON('/api/leaderboard');
@@ -433,13 +462,14 @@
         }
       }
 
-      // Increment
+      // Increment button
       const incBtn = document.getElementById('inc');
       incBtn.addEventListener('click', async () => {
         incBtn.disabled = true;
         try {
           const { count } = await fetchJSON('/api/increment', { method: 'POST' });
           setNumber(count, { animate: true });
+          // Refresh leaderboard after increment
           refreshLeaderboard();
         } catch (err) {
           console.error(err);
@@ -449,7 +479,7 @@
         }
       });
 
-      // Name
+      // Name form
       const nameForm = document.getElementById('name-form');
       const nameInput = document.getElementById('name-input');
       const nameStatus = document.getElementById('name-status');
@@ -497,7 +527,8 @@
         // Polling
         let countTimer, lbTimer;
         const schedule = () => {
-          clearInterval(countTimer); clearInterval(lbTimer);
+          clearInterval(countTimer);
+          clearInterval(lbTimer);
           const countMs = document.hidden ? 5000 : 1000;
           const lbMs    = document.hidden ? 15000 : 5000;
           countTimer = setInterval(refreshCount, countMs);
