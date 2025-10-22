@@ -6,7 +6,7 @@
     <link rel="icon" href="data:," />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <!-- JetBrains Mono -->
+    <!-- JetBrains Mono for digits -->
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 
     <style>
@@ -15,8 +15,8 @@
 
         /* Counter layout */
         --slots: 8;
-        --digit-w: 64px;   /* slot width */
-        --digit-h: 5rem;   /* slot height */
+        --digit-w: 64px;
+        --digit-h: 5rem;
         --gap: 16px;
         --panel-pad: 14px;
 
@@ -26,7 +26,7 @@
         --panel-bg: #242424;
         --slot-bg: #1b1b1b;
         --slot-border: #4a4a4a;
-        --digit: #8b5cf6; /* violet */
+        --digit: #8b5cf6;
       }
 
       html, body { height: 100%; }
@@ -48,18 +48,8 @@
         background-size: 40px 40px;
       }
 
-      .stage {
-        display: grid;
-        justify-items: center;
-        gap: 28px;
-      }
-
-      .title {
-        opacity: 0.85;
-        font-size: 14px;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-      }
+      .stage { display: grid; justify-items: center; gap: 28px; }
+      .title { opacity: 0.85; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; }
 
       /* Two-column layout (leaderboard left, counter right) */
       .columns {
@@ -71,177 +61,62 @@
       }
       @media (min-width: 900px) {
         .columns {
-          /* Left column has a fixed comfy range; right column is the counter width */
-          grid-template-columns: minmax(260px, 340px) auto;
-          justify-content: center; /* center the whole pair */
+          grid-template-columns: minmax(260px, 340px) auto; /* left fixed-ish, right auto */
+          justify-content: center;
           column-gap: 40px;
         }
       }
 
       /* Right column container */
-      .main {
-        display: grid;
-        gap: 16px;
-        justify-items: center; /* keeps button/name same width as panel (JS sets width) */
-      }
+      .main { display: grid; gap: 16px; justify-items: center; }
 
-      /* Leaderboard: narrower and right-aligned within its column to pull it closer to center */
+      /* Leaderboard left (narrower) */
       .leaderboard {
-        display: grid;
-        gap: 12px;
-        width: 100%;
-        max-width: 340px;         /* cap width */
-        justify-self: end;        /* nudge closer to center line */
+        display: grid; gap: 12px; width: 100%; max-width: 340px; justify-self: end;
       }
-
-      .lb-title {
-        opacity: 0.8;
-        font-size: 13px;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        text-align: left;
-      }
-
-      .lb-list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        display: grid;
-        gap: 10px;
-      }
-
+      .lb-title { opacity: 0.8; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; text-align: left; }
+      .lb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
       .lb-row {
-        display: grid;
-        /* tighter name column to keep usernames from taking too much space */
-        grid-template-columns: 36px minmax(0, 14ch) auto;
-        align-items: center;
-        gap: 12px;
-        padding: 10px 14px;
-        background: var(--slot-bg);
-        border: 2px solid var(--slot-border);
-        box-shadow:
-          inset 0 0 0 2px var(--slot-bg),
-          0 4px 14px rgba(0, 0, 0, 0.35);
-        border-radius: 12px;
+        display: grid; grid-template-columns: 36px minmax(0, 14ch) auto; align-items: center; gap: 12px;
+        padding: 10px 14px; background: var(--slot-bg); border: 2px solid var(--slot-border);
+        box-shadow: inset 0 0 0 2px var(--slot-bg), 0 4px 14px rgba(0,0,0,.35); border-radius: 12px;
       }
+      .lb-rank { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: #2a2a2a; color: #cbd5e1; font-size: 12px; font-weight: 700; }
+      .lb-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e5e7eb; font-size: 16px; max-width: 14ch; }
+      .lb-count { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--digit); font-weight: 600; font-size: 18px; text-align: right; min-width: 5ch; }
+      .empty { opacity: .7; text-align: center; padding: 8px 0; }
 
-      .lb-rank {
-        display: grid;
-        place-items: center;
-        width: 28px; height: 28px;
-        border-radius: 8px;
-        background: #2a2a2a;
-        color: #cbd5e1;
-        font-size: 12px;
-        font-weight: 700;
-      }
+      /* Panel behind counter */
+      .counter-wrap { position: relative; display: inline-block; }
+      .panel { position: absolute; inset: calc(-1 * var(--panel-pad)); background: var(--panel-bg); border-radius: 16px 16px 0 0; z-index: 0; }
 
-      .lb-name {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        color: #e5e7eb;
-        font-size: 16px;
-        max-width: 14ch; /* clamp visible name length */
-      }
-
-      .lb-count {
-        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-        color: var(--digit);
-        font-weight: 600;
-        font-size: 18px;
-        text-align: right;
-        min-width: 5ch; /* slightly tighter */
-      }
-
-      .empty {
-        opacity: 0.7;
-        text-align: center;
-        padding: 8px 0;
-      }
-
-      /* Panel behind counter (rounded top corners only) */
-      .counter-wrap {
-        position: relative;
-        display: inline-block;
-      }
-      .panel {
-        position: absolute;
-        inset: calc(-1 * var(--panel-pad));
-        background: var(--panel-bg);
-        border-radius: 16px 16px 0 0;
-        z-index: 0;
-      }
-
-      /* 8-slot counter (custom reel) */
-      .counter {
-        position: relative;
-        z-index: 1;
-        display: flex;
-        gap: var(--gap);
-      }
-
+      /* Counter reels */
+      .counter { position: relative; z-index: 1; display: flex; gap: var(--gap); }
       .slot {
-        position: relative;
-        width: var(--digit-w);
-        height: var(--digit-h);
-        background: var(--slot-bg);
-        border-radius: 14px;
-        border: 2px solid var(--slot-border);
-        box-shadow:
-          inset 0 0 0 2px var(--slot-bg),
-          0 4px 14px rgba(0, 0, 0, 0.35);
-        overflow: hidden; /* viewport for reel */
+        position: relative; width: var(--digit-w); height: var(--digit-h);
+        background: var(--slot-bg); border-radius: 14px; border: 2px solid var(--slot-border);
+        box-shadow: inset 0 0 0 2px var(--slot-bg), 0 4px 14px rgba(0,0,0,.35); overflow: hidden;
       }
-
-      /* Reel holds 0..9 three times so 0 is always below 9 (instant carry) */
-      .reel {
-        position: absolute;
-        top: 0; left: 0; right: 0;
-        transform: translateY(calc(-1 * var(--i, 10) * var(--digit-h)));
-        transition: transform var(--t, 900ms) cubic-bezier(.22,.8,.15,1);
-        will-change: transform;
-      }
-
+      .reel { position: absolute; top: 0; left: 0; right: 0; transform: translateY(calc(-1 * var(--i, 10) * var(--digit-h))); transition: transform var(--t, 900ms) cubic-bezier(.22,.8,.15,1); will-change: transform; }
       .num {
-        display: grid;
-        place-items: center;
-        height: var(--digit-h);
-        width: 100%;
-        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-        font-weight: 600;
-        font-size: 2.2rem;
-        line-height: 1;
-        font-variant-numeric: tabular-nums;
+        display: grid; place-items: center; height: var(--digit-h); width: 100%;
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-weight: 600; font-size: 2.2rem; line-height: 1; font-variant-numeric: tabular-nums;
         color: var(--digit);
-        text-shadow:
-          0 0 12px rgba(139, 92, 246, 0.25),
-          0 1px 0 rgba(0,0,0,0.4);
+        text-shadow: 0 0 12px rgba(139, 92, 246, .25), 0 1px 0 rgba(0,0,0,.4);
       }
+      @media (prefers-reduced-motion: reduce) { .reel { transition-duration: 0ms !important; } }
 
-      @media (prefers-reduced-motion: reduce) {
-        .reel { transition-duration: 0ms !important; }
-      }
-
-      /* Button outside, no stroke; square top corners */
+      /* Button */
       .cta-button {
-        display: block;
-        box-sizing: border-box;
-        width: auto;                /* set by JS to match the panel width */
-        padding: 0.9rem 1.2rem;
-        background: #242424;
-        color: #fff;
-        border: none;
-        border-radius: 0 0 8px 8px; /* square top, rounded bottom */
-        font: inherit;
-        cursor: pointer;
-        text-align: center;
+        display: block; box-sizing: border-box; width: auto;
+        padding: 0.9rem 1.2rem; background: #242424; color: #fff; border: none;
+        border-radius: 0 0 8px 8px; font: inherit; cursor: pointer; text-align: center;
       }
       .cta-button:hover { background: #2a2a2a; }
       .cta-button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
-      /* Name form (same width as panel via JS) */
+      /* Name form */
       .name-settings { display: grid; gap: 10px; width: auto; }
       .name-form { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
       .name-input {
@@ -254,6 +129,25 @@
       }
       .name-save:hover { background: #333; }
       .name-status { min-height: 1.2em; font-size: 12px; opacity: 0.8; }
+
+      /* Admin panel (only visible if user has Admin=true) */
+      .admin-panel { display: grid; gap: 12px; width: auto; }
+      .admin-card {
+        display: grid; gap: 10px; padding: 12px 14px; background: var(--slot-bg);
+        border: 2px solid var(--slot-border); border-radius: 12px;
+        box-shadow: inset 0 0 0 2px var(--slot-bg), 0 4px 14px rgba(0,0,0,.35);
+      }
+      .admin-title { opacity: 0.8; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+      .admin-grid { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; align-items: center; }
+      .admin-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+      .admin-input {
+        padding: 8px 10px; border-radius: 10px; border: 2px solid var(--slot-border);
+        background: #202020; color: #e5e7eb; font: inherit; width: 160px;
+      }
+      .btn { padding: 8px 12px; border-radius: 10px; border: 2px solid var(--slot-border); background: #2a2a2a; color: #fff; cursor: pointer; }
+      .btn:hover { background: #333; }
+      .btn.danger { background: #3a2323; border-color: #5c2a2a; }
+      .admin-status { min-height: 1.2em; font-size: 12px; opacity: 0.8; }
     </style>
   </head>
   <body>
@@ -283,33 +177,45 @@
             </form>
             <div class="name-status" id="name-status"></div>
           </section>
+
+          <!-- Admin panel (shown only if /api/me.admin === true) -->
+          <section class="admin-panel" id="admin-panel" hidden>
+            <div class="admin-card">
+              <div class="admin-title">Admin</div>
+
+              <div class="admin-grid">
+                <div>Global count</div><div id="admin-gc">–</div>
+                <div>Leaderboard size</div><div id="admin-lbsize">–</div>
+              </div>
+
+              <div class="admin-actions">
+                <input id="admin-set-value" class="admin-input" type="number" min="0" step="1" placeholder="Set count…" />
+                <button id="admin-apply-set" class="btn">Apply</button>
+                <button id="admin-reset-count" class="btn danger">Reset count</button>
+                <button id="admin-clear-lb" class="btn danger">Clear leaderboard</button>
+              </div>
+
+              <div class="admin-status" id="admin-status"></div>
+            </div>
+          </section>
         </div>
       </div>
     </div>
 
     <script>
       const SLOTS = 8;
+      const BASE = 900, PER_STEP = 300;
+      const COPIES = 3, COPY_SIZE = 10, REEL_LEN = COPY_SIZE * COPIES, MIDDLE_OFFSET = COPY_SIZE;
 
-      // Animation timing (tweak to taste)
-      const BASE = 900;      // ms base
-      const PER_STEP = 300;  // ms per digit step (0..9)
-
-      // Reel constants: 0..9 repeated 3x so 0 is always below 9
-      const COPIES = 3;
-      const COPY_SIZE = 10;
-      const REEL_LEN = COPY_SIZE * COPIES;  // 30
-      const MIDDLE_OFFSET = COPY_SIZE;      // 10 -> middle copy
-
-      // Build counter reels
       const counterEl = document.getElementById('counter');
       const reels = [];
 
+      // Build reels
       for (let i = 0; i < SLOTS; i++) {
         const slot = document.createElement('div');
         slot.className = 'slot';
         const reel = document.createElement('div');
         reel.className = 'reel';
-
         for (let c = 0; c < COPIES; c++) {
           for (let d = 0; d < 10; d++) {
             const el = document.createElement('div');
@@ -318,10 +224,9 @@
             reel.appendChild(el);
           }
         }
-        const baseline = MIDDLE_OFFSET + 0; // show 0 initially
+        const baseline = MIDDLE_OFFSET + 0;
         reel.style.setProperty('--i', baseline);
         reel.dataset.index = String(baseline);
-
         slot.appendChild(reel);
         counterEl.appendChild(slot);
         reels.push(reel);
@@ -330,26 +235,22 @@
       function animateReel(reel, targetDigit) {
         const curIdx = Number(reel.dataset.index || (MIDDLE_OFFSET + 0));
         const curVal = curIdx % 10;
-
-        const forward = (targetDigit - curVal + 10) % 10;   // move down
-        const backward = (curVal - targetDigit + 10) % 10;  // move up
-
+        const forward = (targetDigit - curVal + 10) % 10;
+        const backward = (curVal - targetDigit + 10) % 10;
         let nextIdx, steps;
         if (forward <= backward) { nextIdx = curIdx + forward; steps = forward; }
         else { nextIdx = curIdx - backward; steps = backward; }
-
         const dur = BASE + PER_STEP * steps;
         reel.style.setProperty('--t', dur + 'ms');
         reel.style.setProperty('--i', nextIdx);
         reel.dataset.index = String(nextIdx);
-
         const onEnd = (e) => {
           if (e.propertyName !== 'transform') return;
           reel.removeEventListener('transitionend', onEnd);
           const baseline = MIDDLE_OFFSET + (nextIdx % 10);
           reel.style.setProperty('--t', '0ms');
           reel.style.setProperty('--i', baseline);
-          void reel.offsetWidth; // reflow
+          void reel.offsetWidth;
           reel.style.removeProperty('--t');
           reel.dataset.index = String(baseline);
         };
@@ -361,12 +262,10 @@
         const next = Math.max(0, Math.floor(n));
         const curStr  = String(currentValue).padStart(SLOTS, '0');
         const nextStr = String(next).padStart(SLOTS, '0');
-
         for (let i = 0; i < SLOTS; i++) {
           const reel = reels[i];
           const fromDigit = +curStr[i];
           const toDigit   = +nextStr[i];
-
           if (!animate) {
             const baseline = MIDDLE_OFFSET + toDigit;
             reel.style.setProperty('--t', '0ms');
@@ -381,18 +280,16 @@
         currentValue = next;
       }
 
-      // Size elements to match the behind panel width — only the right column (button + name)
+      // Match panel width for button/name/admin
       (function sizeToPanel() {
         const panel = document.querySelector('.panel');
         const wrap = document.querySelector('.counter-wrap');
         const elements = [
           document.querySelector('.cta-button'),
-          document.querySelector('#name-settings')
-          // NOTE: leaderboard removed here so it can be narrower than the counter
+          document.querySelector('#name-settings'),
+          document.querySelector('#admin-panel'),
         ].filter(Boolean);
-
         if (!panel || !wrap || !elements.length) return;
-
         const setWidth = () => {
           const w = Math.ceil(panel.getBoundingClientRect().width);
           elements.forEach(el => el.style.width = w + 'px');
@@ -402,14 +299,17 @@
         if ('ResizeObserver' in window) new ResizeObserver(setWidth).observe(wrap);
       })();
 
-      // Networking helpers
+      // Networking helper
       async function fetchJSON(url, opts) {
         const res = await fetch(url, opts);
-        if (!res.ok) throw new Error(await res.text());
-        return res.json();
+        const text = await res.text();
+        let data = {};
+        try { data = text ? JSON.parse(text) : {}; } catch {}
+        if (!res.ok) throw new Error(JSON.stringify(data?.error ? { error: data.error } : data));
+        return data;
       }
 
-      // Global count refresh
+      // Count
       async function refreshCount() {
         try {
           const { count } = await fetchJSON('/api/count');
@@ -419,7 +319,7 @@
         }
       }
 
-      // Leaderboard rendering
+      // Leaderboard
       const lbList = document.getElementById('lb-list');
       function renderLeaderboard(leaders = []) {
         lbList.innerHTML = '';
@@ -430,29 +330,15 @@
           lbList.appendChild(li);
           return;
         }
-
         leaders.slice(0, 10).forEach((row, idx) => {
           const li = document.createElement('li');
           li.className = 'lb-row';
-
-          const rank = document.createElement('div');
-          rank.className = 'lb-rank';
-          rank.textContent = idx + 1;
-
-          const name = document.createElement('div');
-          name.className = 'lb-name';
-          name.textContent = row.name || 'Anonymous';
-
-          const count = document.createElement('div');
-          count.className = 'lb-count';
-          count.textContent = (row.count ?? 0).toLocaleString();
-
-          li.append(rank, name, count);
-          lbList.appendChild(li);
+          const rank = document.createElement('div'); rank.className = 'lb-rank'; rank.textContent = idx + 1;
+          const name = document.createElement('div'); name.className = 'lb-name'; name.textContent = row.name || 'Anonymous';
+          const count = document.createElement('div'); count.className = 'lb-count'; count.textContent = (row.count ?? 0).toLocaleString();
+          li.append(rank, name, count); lbList.appendChild(li);
         });
       }
-
-      // Leaderboard fetch
       async function refreshLeaderboard() {
         try {
           const { leaders } = await fetchJSON('/api/leaderboard');
@@ -462,14 +348,13 @@
         }
       }
 
-      // Increment button
+      // Increment
       const incBtn = document.getElementById('inc');
       incBtn.addEventListener('click', async () => {
         incBtn.disabled = true;
         try {
           const { count } = await fetchJSON('/api/increment', { method: 'POST' });
           setNumber(count, { animate: true });
-          // Refresh leaderboard after increment
           refreshLeaderboard();
         } catch (err) {
           console.error(err);
@@ -479,7 +364,7 @@
         }
       });
 
-      // Name form
+      // Name
       const nameForm = document.getElementById('name-form');
       const nameInput = document.getElementById('name-input');
       const nameStatus = document.getElementById('name-status');
@@ -488,7 +373,7 @@
         try {
           const { name } = await fetchJSON('/api/name');
           if (typeof name === 'string' && name) nameInput.value = name;
-        } catch { /* ignore */ }
+        } catch {}
       }
 
       nameForm.addEventListener('submit', async (e) => {
@@ -515,6 +400,58 @@
         }
       });
 
+      // Admin panel
+      const adminPanel = document.getElementById('admin-panel');
+      const adminGcEl = document.getElementById('admin-gc');
+      const adminLbSizeEl = document.getElementById('admin-lbsize');
+      const adminStatus = document.getElementById('admin-status');
+      const adminSetValue = document.getElementById('admin-set-value');
+      const adminApplySet = document.getElementById('admin-apply-set');
+      const adminResetCount = document.getElementById('admin-reset-count');
+      const adminClearLb = document.getElementById('admin-clear-lb');
+
+      async function loadAdminStats() {
+        try {
+          adminStatus.textContent = 'Loading…';
+          const { global_count, leaderboard_size } = await fetchJSON('/api/admin/stats');
+          adminGcEl.textContent = global_count.toLocaleString();
+          adminLbSizeEl.textContent = leaderboard_size.toLocaleString();
+          adminStatus.textContent = '';
+        } catch (e) {
+          adminStatus.textContent = 'Error: ' + (e.message || e);
+        }
+      }
+
+      adminApplySet.addEventListener('click', async () => {
+        const val = Math.floor(Number(adminSetValue.value));
+        if (!Number.isFinite(val) || val < 0) return alert('Enter a non-negative integer');
+        try {
+          await fetchJSON('/api/admin/set-count', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ value: val })
+          });
+          await Promise.all([loadAdminStats(), refreshCount()]);
+          alert('Count set');
+        } catch (e) { alert('Failed: ' + e.message); }
+      });
+
+      async function doReset(scope) {
+        const confirmWord = prompt(`Type RESET to confirm ${scope} reset`);
+        if (confirmWord !== 'RESET') return;
+        try {
+          await fetchJSON('/api/admin/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scope, confirm: 'RESET' })
+          });
+          await Promise.all([loadAdminStats(), refreshCount(), refreshLeaderboard()]);
+          alert('Done');
+        } catch (e) { alert('Failed: ' + e.message); }
+      }
+      adminResetCount.addEventListener('click', () => doReset('count'));
+      adminClearLb.addEventListener('click', () => doReset('leaderboard'));
+
       // Init
       (async function init() {
         try {
@@ -524,11 +461,21 @@
         await loadName();
         await refreshLeaderboard();
 
+        // Show admin panel if current user has Admin=true
+        try {
+          const me = await fetchJSON('/api/me');
+          if (me?.admin) {
+            adminPanel.hidden = false;
+            await loadAdminStats();
+          } else {
+            adminPanel.hidden = true;
+          }
+        } catch { adminPanel.hidden = true; }
+
         // Polling
         let countTimer, lbTimer;
         const schedule = () => {
-          clearInterval(countTimer);
-          clearInterval(lbTimer);
+          clearInterval(countTimer); clearInterval(lbTimer);
           const countMs = document.hidden ? 5000 : 1000;
           const lbMs    = document.hidden ? 15000 : 5000;
           countTimer = setInterval(refreshCount, countMs);
