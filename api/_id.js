@@ -8,7 +8,6 @@ export function getClientId(req, res) {
 
   if (!cid) {
     cid = 'u_' + randomUUID().replace(/-/g, '').slice(0, 12);
-    // one year
     res.setHeader(
       'Set-Cookie',
       `cid=${encodeURIComponent(cid)}; Path=/; Max-Age=31536000; SameSite=Lax; Secure`
