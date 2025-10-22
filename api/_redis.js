@@ -14,18 +14,15 @@ export async function getRedis() {
     client = createClient({
       url,
       socket: {
-        tls: url.startsWith('rediss://'), // explicit TLS if using rediss://
+        tls: url.startsWith('rediss://'),
         keepAlive: 5000,
-        connectTimeout: 10000,
+        connectTimeout: 10000
       },
-      // Reduce hanging if Redis is unreachable
       disableOfflineQueue: true,
-      maxRetriesPerRequest: 2,
+      maxRetriesPerRequest: 2
     });
 
     client.on('error', (e) => console.error('Redis error:', e));
-
-    // Ensure only one connect in flight
     connecting = client.connect().catch((e) => {
       connecting = null;
       throw e;
