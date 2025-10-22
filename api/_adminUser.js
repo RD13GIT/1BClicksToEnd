@@ -10,11 +10,10 @@ function isTrueish(v) {
 export async function requireAdminUser(req, res) {
   const cid = getClientId(req, res);
   const redis = await getRedis();
-  // Prefer "Admin", fallback to "admin"
   const raw = (await redis.hGet(`user:${cid}`, 'Admin')) ?? (await redis.hGet(`user:${cid}`, 'admin'));
   const allowed = isTrueish(raw);
   if (!allowed) {
-    res.status(403).json({ error: 'Forbidden' });
+    res.status(403).json({ error: 'Forbidden: Admin only' });
     return { ok: false };
   }
   return { ok: true, cid };
