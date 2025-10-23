@@ -1,7 +1,8 @@
+// api/admin/[...path].js
 import { getRedis } from '../../lib/redis.js';
 import { requireAdminUser, isTrueish } from '../../lib/adminUser.js';
 
-export const config = { runtime: 'nodejs18.x', memory: 1024, maxDuration: 10 };
+export const config = { runtime: 'nodejs' };
 
 async function readJSON(req) {
   if (req.body && typeof req.body === 'object') return req.body;
@@ -80,8 +81,8 @@ export default async function handler(req, res) {
       if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).send('Method Not Allowed'); }
       const body = await readJSON(req);
       const id = (body?.id || '').trim();
-      const makeAdmin = isTrueish(body?.admin);
       if (!id) return res.status(400).json({ error: 'Missing id' });
+      const makeAdmin = isTrueish(body?.admin);
       const r = await getRedis();
       await r.hSet(`user:${id}`, { Admin: makeAdmin ? 'true' : 'false', admin: makeAdmin ? 'true' : 'false' });
       return res.status(200).json({ ok: true, id, admin: makeAdmin });
