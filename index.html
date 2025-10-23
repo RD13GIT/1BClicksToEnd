@@ -30,12 +30,10 @@
       .title { opacity: 0.85; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 8px; }
       .offline { background: #3a2323; border: 1px solid #5c2a2a; color: #fecaca; padding: 8px 12px; border-radius: 8px; font-size: 13px; width: min(900px, 92vw); text-align: center; }
 
-      /* Layout: leaderboard left, counter+controls right */
       .columns { display: grid; gap: 28px; align-items: start; grid-template-columns: 1fr; width: 100%; }
       @media (min-width: 900px) { .columns { grid-template-columns: minmax(260px, 340px) auto; justify-content: center; column-gap: 40px; } }
       .main { display: grid; gap: 16px; justify-items: center; }
 
-      /* Leaderboard */
       .leaderboard { display: grid; gap: 12px; width: 100%; max-width: 340px; justify-self: end; }
       .lb-title { opacity: 0.8; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; text-align: left; }
       .lb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
@@ -47,22 +45,19 @@
       .lb-count { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: var(--digit); font-weight: 600; font-size: 18px; text-align: right; min-width: 5ch; }
       .empty { opacity: .7; text-align: center; padding: 8px 0; }
 
-      /* Counter visuals */
       .counter-wrap { position: relative; display: inline-block; }
-      /* Use your rectangle image for the panel background with a fallback color */
       .panel {
         position: absolute; inset: calc(-1 * var(--panel-pad));
-        background: var(--panel-bg) url('/images/background.png') center/cover no-repeat;
+        background: var(--panel-bg); /* reverted: solid color only */
         border-radius: 16px 16px 0 0; z-index: 0;
       }
       .counter { position: relative; z-index: 1; display: flex; gap: var(--gap); }
 
-      /* Each digit slot uses your slot.png */
       .slot {
         position: relative; width: var(--digit-w); height: var(--digit-h);
-        background: var(--slot-bg) url('/images/slot.png') center/cover no-repeat;
+        background: var(--slot-bg); /* reverted: solid color only */
         border-radius: 14px; border: 2px solid var(--slot-border);
-        box-shadow: inset 0 0 0 2px rgba(0,0,0,0.25), 0 4px 14px rgba(0,0,0,.35);
+        box-shadow: inset 0 0 0 2px var(--slot-bg), 0 4px 14px rgba(0,0,0,.35);
         overflow: hidden;
       }
 
@@ -86,7 +81,6 @@
       .name-save:hover { background: #333; }
       .name-status { min-height: 1.2em; font-size: 12px; opacity: 0.8; }
 
-      /* Admin panel (hidden by default, shown only if /api/me.admin === true) */
       .admin-panel { display: grid; gap: 12px; width: auto; }
       .admin-card { display: grid; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.03); border: 2px solid var(--slot-border); border-radius: 12px; box-shadow: inset 0 0 0 2px rgba(0,0,0,0.2), 0 4px 14px rgba(0,0,0,.35); }
       .admin-title { opacity: 0.8; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -440,7 +434,7 @@
         await loadName();
         await refreshLeaderboard();
 
-        // Show admin only if admin in DB
+        // Show admin panel only if admin
         try {
           const me = await fetchJSON('/api/me');
           if (me?.admin) { adminPanel.hidden = false; await loadAdminStats(); }
