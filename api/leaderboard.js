@@ -1,6 +1,7 @@
 // api/leaderboard.js
 import { getRedis } from './_redis.js';
 import { getClientId } from './_id.js';
+import { isTrueish } from './_adminUser.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -8,29 +9,34 @@ export default async function handler(req, res) {
     return res.status(405).send('Method Not Allowed');
   }
   try {
-    // ensure cid cookie exists even if user hasn’t clicked yet
     getClientId(req, res);
-
     const redis = await getRedis();
 
-    // Top 10 by score
-    const top = await redis.zRangeWithScores('leaderboard', 0, 9, { REV: true });
+    // Fetch more than needed, then filter banned
+    const CANDIDATES = 50;
+    const raw = await redis.zRangeWithScores('leaderboard', 0, CANDIDATES - 1, { REV: true });
 
-    // Fetch names for each id
-    const names = await Promise.all(
-      top.map(({ value: id }) => redis.hGet(`user:${id}`, 'name'))
-    );
+    // Fetch names + banned flags
+    const [names, bans] = await Promise.all([
+      Promise.all(raw.map(({ value: id }) => redis.hGet(`user:${id}`, 'name'))),
+      Promise.all(raw.map(({ value: id }) =>
+        redis.hGet(`user:${id}`, 'Banned').then(v => v ?? redis.hGet(`user:${id}`, 'banned'))
+      )),
+    ]);
 
-    const leaders = top.map(({ value: id, score }, i) => ({
-      id,
-      name: names[i] || 'Anonymous',
-      count: Number(score) || 0
-    }));
+    // Filter out banned
+    const leaders = [];
+    for (let i = 0; i < raw.length && leaders.length < 10; i++) {
+      const id = raw[i].value;
+      const score = Number(raw[i].score) || 0;
+      const banned = isTrueish(bans[i]);
+      if (!banned) leaders.push({ id, name: names[i] || 'Anonymous', count: score });
+    }
 
     res.setHeader('Cache-Control', 'no-store');
-    return res.status(200).json({ leaders });
+    res.status(200).json({ leaders });
   } catch (e) {
     console.error(e);
-    return res.status(500).json({ error: 'Failed to get leaderboard' });
+    res.status(500).json({ error: 'Failed to get leaderboard' });
   }
 }
