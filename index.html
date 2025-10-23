@@ -39,7 +39,7 @@
       .lb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
       .lb-row { display: grid; grid-template-columns: 36px minmax(0, 14ch) auto; align-items: center; gap: 12px;
         padding: 10px 14px; background: var(--slot-bg); border: 2px solid var(--slot-border);
-        box-shadow: inset 0 0 0 2px var(--slot-bg), 0 4px 14px rgba(0,0,0,.35); border-radius: 12px; }
+        box-shadow: inset 0 0 0 2px var(--slot-bg), 0 4px 14px rgba(0,0,0,.35); border-radius: 12px; cursor: context-menu; }
       .lb-rank { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: #2a2a2a; color: #cbd5e1; font-size: 12px; font-weight: 700; }
       .lb-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e5e7eb; font-size: 16px; max-width: 14ch; }
       .lb-count { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: var(--digit); font-weight: 600; font-size: 18px; text-align: right; min-width: 5ch; }
@@ -48,14 +48,14 @@
       .counter-wrap { position: relative; display: inline-block; }
       .panel {
         position: absolute; inset: calc(-1 * var(--panel-pad));
-        background: var(--panel-bg); /* reverted: solid color only */
+        background: var(--panel-bg);
         border-radius: 16px 16px 0 0; z-index: 0;
       }
       .counter { position: relative; z-index: 1; display: flex; gap: var(--gap); }
 
       .slot {
         position: relative; width: var(--digit-w); height: var(--digit-h);
-        background: var(--slot-bg); /* reverted: solid color only */
+        background: var(--slot-bg);
         border-radius: 14px; border: 2px solid var(--slot-border);
         box-shadow: inset 0 0 0 2px var(--slot-bg), 0 4px 14px rgba(0,0,0,.35);
         overflow: hidden;
@@ -90,6 +90,25 @@
       .btn { padding: 8px 12px; border-radius: 10px; border: 2px solid var(--slot-border); background: #2a2a2a; color: #fff; cursor: pointer; }
       .btn:hover { background: #333; }
       .btn.danger { background: #3a2323; border-color: #5c2a2a; }
+
+      /* Admin visibility: hidden by default; only show if body.has is-admin */
+      #admin-panel { display: none !important; }
+      body.is-admin #admin-panel { display: grid !important; }
+
+      /* Context menu for leaderboard rows */
+      .ctx-menu {
+        position: fixed; z-index: 1000; min-width: 180px;
+        background: #1f2937; border: 1px solid #374151; border-radius: 10px;
+        box-shadow: 0 14px 40px rgba(0,0,0,.45); padding: 6px; color: #e5e7eb;
+      }
+      .ctx-item {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 10px; border-radius: 8px; cursor: pointer; user-select: none;
+      }
+      .ctx-item:hover { background: #2b3442; }
+      .ctx-kbd {
+        margin-left: auto; opacity: .6; font-size: 12px; border: 1px solid #4b5563; padding: 0 6px; border-radius: 6px;
+      }
     </style>
   </head>
   <body>
@@ -121,7 +140,7 @@
             <div class="name-status" id="name-status"></div>
           </section>
 
-          <!-- Admin panel (only shown if /api/me.admin === true) -->
+          <!-- Admin panel (only shown when body.has is-admin) -->
           <section class="admin-panel" id="admin-panel" hidden>
             <div class="admin-card">
               <div class="admin-title">Admin</div>
@@ -154,6 +173,15 @@
             </div>
           </section>
         </div>
+      </div>
+    </div>
+
+    <!-- Context menu -->
+    <div id="ctx-menu" class="ctx-menu" hidden>
+      <div id="ctx-copy-id" class="ctx-item">
+        <span>📋</span>
+        <span>Copy user ID</span>
+        <span class="ctx-kbd">Ctrl+C</span>
       </div>
     </div>
 
@@ -250,7 +278,7 @@
       function setOnlineState(online) {
         offlineBar.hidden = online;
         incBtn.disabled = !online;
-        if (!adminPanel.hidden) {
+        if (document.body.classList.contains('is-admin')) {
           adminApplySet.disabled = !online;
           adminApplyAdd.disabled = !online;
           adminUserAdd.disabled = !online;
@@ -263,7 +291,7 @@
       window.addEventListener('online', async () => {
         setOnlineState(true);
         await Promise.allSettled([refreshCount(), refreshLeaderboard()]);
-        if (!adminPanel.hidden) await loadAdminStats();
+        if (document.body.classList.contains('is-admin')) await loadAdminStats();
       });
       window.addEventListener('offline', () => setOnlineState(false));
 
@@ -297,6 +325,8 @@
         }
         leaders.slice(0, 10).forEach((row, idx) => {
           const li = document.createElement('li'); li.className = 'lb-row';
+          li.dataset.id = row.id;           // <-- store user id
+          li.title = 'Right-click to copy ID';
           const rank = document.createElement('div'); rank.className = 'lb-rank'; rank.textContent = idx + 1;
           const name = document.createElement('div'); name.className = 'lb-name'; name.textContent = row.name || 'Anonymous';
           const count = document.createElement('div'); count.className = 'lb-count'; count.textContent = (row.count ?? 0).toLocaleString();
@@ -428,18 +458,96 @@
         } catch (e) { alert('Failed: ' + e.message); }
       });
 
+      // Context menu (copy user ID)
+      const ctxMenu = document.getElementById('ctx-menu');
+      const ctxCopy = document.getElementById('ctx-copy-id');
+      let ctxTargetId = '';
+
+      lbList.addEventListener('contextmenu', (e) => {
+        const row = e.target.closest('.lb-row');
+        if (!row) return; // let default context menu elsewhere
+        e.preventDefault();
+        ctxTargetId = row.dataset.id || '';
+        if (!ctxTargetId) return;
+
+        // Show menu near cursor, clamped to viewport
+        ctxMenu.hidden = false;
+        ctxMenu.style.visibility = 'hidden'; // measure first
+        requestAnimationFrame(() => {
+          const rect = ctxMenu.getBoundingClientRect();
+          const pad = 8;
+          let x = e.clientX, y = e.clientY;
+          x = Math.min(x, window.innerWidth - rect.width - pad);
+          y = Math.min(y, window.innerHeight - rect.height - pad);
+          ctxMenu.style.left = x + 'px';
+          ctxMenu.style.top = y + 'px';
+          ctxMenu.style.visibility = 'visible';
+        });
+      });
+
+      async function copyText(text) {
+        try {
+          await navigator.clipboard.writeText(text);
+          return true;
+        } catch {
+          // Fallback
+          const ta = document.createElement('textarea');
+          ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+          document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); } catch { return false; }
+          finally { document.body.removeChild(ta); }
+          return true;
+        }
+      }
+
+      ctxCopy.addEventListener('click', async () => {
+        if (!ctxTargetId) return;
+        const ok = await copyText(ctxTargetId);
+        hideCtx();
+        if (ok) alert('Copied user ID: ' + ctxTargetId);
+        else alert('Failed to copy. You can select and copy manually: ' + ctxTargetId);
+      });
+
+      function hideCtx() {
+        ctxMenu.hidden = true;
+        ctxMenu.style.left = '-9999px';
+        ctxMenu.style.top = '-9999px';
+      }
+      document.addEventListener('click', (e) => {
+        if (ctxMenu.hidden) return;
+        if (!e.target.closest('#ctx-menu')) hideCtx();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') hideCtx();
+        // Support Ctrl+C on the menu to copy
+        if (!ctxMenu.hidden && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && ctxTargetId) {
+          copyText(ctxTargetId).then(() => hideCtx());
+        }
+      });
+      window.addEventListener('blur', hideCtx);
+      window.addEventListener('scroll', hideCtx, true);
+
       (async function init() {
         setOnlineState(navigator.onLine);
         try { const { count } = await fetchJSON('/api/count'); setNumber(count, { animate: false }); } catch {}
         await loadName();
         await refreshLeaderboard();
 
-        // Show admin panel only if admin
+        // Show admin only if admin; also toggle body class
         try {
           const me = await fetchJSON('/api/me');
-          if (me?.admin) { adminPanel.hidden = false; await loadAdminStats(); }
-          else { adminPanel.hidden = true; }
-        } catch { adminPanel.hidden = true; }
+          if (me?.admin) {
+            document.body.classList.add('is-admin');
+            adminPanel.hidden = false;
+            await loadAdminStats();
+          } else {
+            document.body.classList.remove('is-admin');
+            adminPanel.hidden = true;
+          }
+        } catch {
+          document.body.classList.remove('is-admin');
+          adminPanel.hidden = true;
+        }
 
         let countTimer, lbTimer;
         const schedule = () => {
