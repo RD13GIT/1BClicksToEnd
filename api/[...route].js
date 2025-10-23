@@ -15,132 +15,128 @@ function noStore(res) { res.setHeader('Cache-Control', 'no-store'); }
 
 export default async function handler(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
-  const path = url.pathname.replace(/^\/api\/?/, ''); // "count", "admin/ban", etc.
+  // Normalize: remove /api prefix, decode, trim slashes
+  const route = decodeURIComponent(url.pathname.replace(/^\/api\/?/, '')).replace(/^\/+|\/+$/g, '');
+  const [seg1 = '', seg2 = ''] = route.split('/'); // e.g., ['admin','stats']
 
   try {
-    switch (path) {
-      // Diagnostics
-      case 'ping': {
-        const r = await getRedis();
-        const pong = await r.ping();
-        return res.status(200).json({ ok: true, pong, haveEnv: !!process.env.REDIS_URL });
-      }
+    // Diagnostics
+    if (seg1 === 'ping') {
+      const r = await getRedis();
+      const pong = await r.ping();
+      return res.status(200).json({ ok: true, pong, haveEnv: !!process.env.REDIS_URL, route });
+    }
 
-      // Identity and profile
-      case 'me': {
-        const cid = getClientId(req, res);
-        const r = await getRedis();
-        const [name, a1, a2, b1, b2] = await Promise.all([
-          r.hGet(`user:${cid}`, 'name'),
-          r.hGet(`user:${cid}`, 'Admin'),
-          r.hGet(`user:${cid}`, 'admin'),
-          r.hGet(`user:${cid}`, 'Banned'),
-          r.hGet(`user:${cid}`, 'banned'),
-        ]);
-        const admin = isTrueish(a1 ?? a2);
-        const banned = isTrueish(b1 ?? b2);
+    // Identity and profile
+    if (seg1 === 'me') {
+      const cid = getClientId(req, res);
+      const r = await getRedis();
+      const [name, a1, a2, b1, b2] = await Promise.all([
+        r.hGet(`user:${cid}`, 'name'),
+        r.hGet(`user:${cid}`, 'Admin'),
+        r.hGet(`user:${cid}`, 'admin'),
+        r.hGet(`user:${cid}`, 'Banned'),
+        r.hGet(`user:${cid}`, 'banned'),
+      ]);
+      const admin = isTrueish(a1 ?? a2);
+      const banned = isTrueish(b1 ?? b2);
+      noStore(res);
+      return res.status(200).json({ id: cid, name: name || '', admin, banned });
+    }
+
+    if (seg1 === 'name') {
+      const cid = getClientId(req, res);
+      const r = await getRedis();
+
+      if (req.method === 'GET') {
+        const name = await r.hGet(`user:${cid}`, 'name');
         noStore(res);
-        return res.status(200).json({ id: cid, name: name || '', admin, banned });
+        return res.status(200).json({ id: cid, name: name || '' });
       }
-
-      case 'name': {
-        const cid = getClientId(req, res);
-        const r = await getRedis();
-
-        if (req.method === 'GET') {
-          const name = await r.hGet(`user:${cid}`, 'name');
-          noStore(res);
-          return res.status(200).json({ id: cid, name: name || '' });
+      if (req.method === 'POST') {
+        const body = await readJSON(req);
+        let name = (body?.name ?? '').toString().trim().replace(/\s+/g, ' ');
+        if (name.length < 2 || name.length > 32) {
+          return res.status(400).json({ error: 'Name must be 2–32 characters' });
         }
+        name = name.replace(/[^\p{L}\p{N} _.-]/gu, '');
+        await r.hSet(`user:${cid}`, { name });
+        noStore(res);
+        return res.status(200).json({ ok: true, id: cid, name });
+      }
+      res.setHeader('Allow', 'GET, POST');
+      return res.status(405).send('Method Not Allowed');
+    }
 
-        if (req.method === 'POST') {
-          const body = await readJSON(req);
-          let name = (body?.name ?? '').toString().trim().replace(/\s+/g, ' ');
-          if (name.length < 2 || name.length > 32) {
-            return res.status(400).json({ error: 'Name must be 2–32 characters' });
-          }
-          name = name.replace(/[^\p{L}\p{N} _.-]/gu, '');
-          await r.hSet(`user:${cid}`, { name });
-          noStore(res);
-          return res.status(200).json({ ok: true, id: cid, name });
-        }
-
-        res.setHeader('Allow', 'GET, POST');
+    // Counter
+    if (seg1 === 'count') {
+      if (req.method !== 'GET') {
+        res.setHeader('Allow', 'GET');
         return res.status(405).send('Method Not Allowed');
       }
+      getClientId(req, res);
+      const r = await getRedis();
+      const val = await r.get('global_count');
+      const count = Number(val) || 0;
+      noStore(res);
+      return res.status(200).json({ count });
+    }
 
-      // Counter
-      case 'count': {
-        if (req.method !== 'GET') {
-          res.setHeader('Allow', 'GET');
-          return res.status(405).send('Method Not Allowed');
-        }
-        getClientId(req, res);
-        const r = await getRedis();
-        const val = await r.get('global_count');
-        const count = Number(val) || 0;
-        noStore(res);
-        return res.status(200).json({ count });
+    if (seg1 === 'increment') {
+      if (req.method !== 'POST') {
+        res.setHeader('Allow', 'POST');
+        return res.status(405).send('Method Not Allowed');
       }
+      const cid = getClientId(req, res);
+      const r = await getRedis();
+      const [b1, b2] = await Promise.all([
+        r.hGet(`user:${cid}`, 'Banned'),
+        r.hGet(`user:${cid}`, 'banned')
+      ]);
+      if (isTrueish(b1 ?? b2)) return res.status(403).json({ error: 'Banned' });
 
-      case 'increment': {
-        if (req.method !== 'POST') {
-          res.setHeader('Allow', 'POST');
-          return res.status(405).send('Method Not Allowed');
-        }
-        const cid = getClientId(req, res);
-        const r = await getRedis();
+      const [count] = await Promise.all([
+        r.incr('global_count'),
+        r.zIncrBy('leaderboard', 1, cid),
+        r.hSetNX(`user:${cid}`, 'name', 'Anonymous')
+      ]);
+      noStore(res);
+      return res.status(200).json({ count });
+    }
 
-        // Banned check
-        const [b1, b2] = await Promise.all([
-          r.hGet(`user:${cid}`, 'Banned'),
-          r.hGet(`user:${cid}`, 'banned')
-        ]);
-        if (isTrueish(b1 ?? b2)) {
-          return res.status(403).json({ error: 'Banned' });
-        }
-
-        const [count] = await Promise.all([
-          r.incr('global_count'),
-          r.zIncrBy('leaderboard', 1, cid),
-          r.hSetNX(`user:${cid}`, 'name', 'Anonymous')
-        ]);
-
-        noStore(res);
-        return res.status(200).json({ count });
+    if (seg1 === 'leaderboard') {
+      if (req.method !== 'GET') {
+        res.setHeader('Allow', 'GET');
+        return res.status(405).send('Method Not Allowed');
       }
+      getClientId(req, res);
+      const r = await getRedis();
 
-      case 'leaderboard': {
-        if (req.method !== 'GET') {
-          res.setHeader('Allow', 'GET');
-          return res.status(405).send('Method Not Allowed');
-        }
-        getClientId(req, res);
-        const r = await getRedis();
+      const CANDIDATES = 50;
+      const raw = await r.zRangeWithScores('leaderboard', 0, CANDIDATES - 1, { REV: true });
+      const [names, bans1, bans2] = await Promise.all([
+        Promise.all(raw.map(({ value: id }) => r.hGet(`user:${id}`, 'name'))),
+        Promise.all(raw.map(({ value: id }) => r.hGet(`user:${id}`, 'Banned'))),
+        Promise.all(raw.map(({ value: id }) => r.hGet(`user:${id}`, 'banned'))),
+      ]);
 
-        const CANDIDATES = 50;
-        const raw = await r.zRangeWithScores('leaderboard', 0, CANDIDATES - 1, { REV: true });
-        const [names, bans1, bans2] = await Promise.all([
-          Promise.all(raw.map(({ value: id }) => r.hGet(`user:${id}`, 'name'))),
-          Promise.all(raw.map(({ value: id }) => r.hGet(`user:${id}`, 'Banned'))),
-          Promise.all(raw.map(({ value: id }) => r.hGet(`user:${id}`, 'banned'))),
-        ]);
-
-        const leaders = [];
-        for (let i = 0; i < raw.length && leaders.length < 10; i++) {
-          const id = raw[i].value;
-          const score = Number(raw[i].score) || 0;
-          const banned = isTrueish(bans1[i] ?? bans2[i]);
-          if (!banned) leaders.push({ id, name: names[i] || 'Anonymous', count: score });
-        }
-        noStore(res);
-        return res.status(200).json({ leaders });
+      const leaders = [];
+      for (let i = 0; i < raw.length && leaders.length < 10; i++) {
+        const id = raw[i].value;
+        const score = Number(raw[i].score) || 0;
+        const banned = isTrueish(bans1[i] ?? bans2[i]);
+        if (!banned) leaders.push({ id, name: names[i] || 'Anonymous', count: score });
       }
+      noStore(res);
+      return res.status(200).json({ leaders });
+    }
 
-      // Admin suite
-      case 'admin/stats': {
-        const auth = await requireAdminUser(req, res);
-        if (!auth.ok) return;
+    // Admin suite
+    if (seg1 === 'admin') {
+      const auth = await requireAdminUser(req, res);
+      if (!auth.ok) return;
+
+      if (seg2 === 'stats') {
         if (req.method !== 'GET') {
           res.setHeader('Allow', 'GET');
           return res.status(405).send('Method Not Allowed');
@@ -157,9 +153,7 @@ export default async function handler(req, res) {
         });
       }
 
-      case 'admin/set-count': {
-        const auth = await requireAdminUser(req, res);
-        if (!auth.ok) return;
+      if (seg2 === 'set-count') {
         if (req.method !== 'POST') {
           res.setHeader('Allow', 'POST');
           return res.status(405).send('Method Not Allowed');
@@ -174,9 +168,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, value });
       }
 
-      case 'admin/add-count': {
-        const auth = await requireAdminUser(req, res);
-        if (!auth.ok) return;
+      if (seg2 === 'add-count') {
         if (req.method !== 'POST') {
           res.setHeader('Allow', 'POST');
           return res.status(405).send('Method Not Allowed');
@@ -191,9 +183,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, count });
       }
 
-      case 'admin/user-delta': {
-        const auth = await requireAdminUser(req, res);
-        if (!auth.ok) return;
+      if (seg2 === 'user-delta') {
         if (req.method !== 'POST') {
           res.setHeader('Allow', 'POST');
           return res.status(405).send('Method Not Allowed');
@@ -214,9 +204,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, id, count: Number(newScore) });
       }
 
-      case 'admin/ban': {
-        const auth = await requireAdminUser(req, res);
-        if (!auth.ok) return;
+      if (seg2 === 'ban') {
         if (req.method !== 'POST') {
           res.setHeader('Allow', 'POST');
           return res.status(405).send('Method Not Allowed');
@@ -232,9 +220,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, id, banned, purged: purge });
       }
 
-      case 'admin/admin': {
-        const auth = await requireAdminUser(req, res);
-        if (!auth.ok) return;
+      if (seg2 === 'admin') {
         if (req.method !== 'POST') {
           res.setHeader('Allow', 'POST');
           return res.status(405).send('Method Not Allowed');
@@ -251,9 +237,12 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, id, admin: makeAdmin });
       }
 
-      default:
-        return res.status(404).json({ error: 'Not Found' });
+      // Unknown admin subroute
+      return res.status(404).json({ error: 'Not Found', route });
     }
+
+    // Unknown route
+    return res.status(404).json({ error: 'Not Found', route });
   } catch (e) {
     console.error('API error:', e);
     return res.status(500).json({ error: e?.message || 'Internal Error' });
