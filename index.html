@@ -33,7 +33,6 @@
       @media (min-width: 900px) { .columns { grid-template-columns: minmax(260px, 340px) auto; justify-content: center; column-gap: 40px; } }
       .main { display: grid; gap: 16px; justify-items: center; }
 
-      /* Leaderboard */
       .leaderboard { display: grid; gap: 12px; width: 100%; max-width: 340px; justify-self: end; }
       .lb-title { opacity: 0.8; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; text-align: left; }
       .lb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
@@ -52,7 +51,7 @@
         background: var(--panel-bg);
         border-radius: 16px 16px 0 0; z-index: 0;
       }
-      /* Title overlay (top-left of the counter background) */
+      /* Title overlay at top-left of counter background */
       .counter-wrap .title {
         position: absolute; z-index: 2;
         top: calc(-1 * var(--panel-pad) + 8px);
@@ -104,13 +103,11 @@
       body.is-admin #admin-panel { display: grid !important; }
 
       /* Banned state UI */
+      #leaderboard { transition: opacity .2s ease; }
       body.is-banned #leaderboard { display: none !important; }
-      body.is-banned .cta-button {
-        background: #991b1b !important; color: #fff;
-        cursor: not-allowed;
-      }
-      body.is-banned { --digit: #ef4444; } /* digits turn red */
-      
+      body.is-banned .cta-button { background: #991b1b !important; color: #fff; cursor: not-allowed; }
+      body.is-banned { --digit: #ef4444; }
+
       /* Context menu */
       .ctx-menu {
         position: fixed; z-index: 1000; min-width: 180px;
@@ -161,6 +158,7 @@
                 <div>Leaderboard size</div><div id="admin-lbsize">–</div>
               </div>
 
+              <div class="admin-title">Global tools</div>
               <div class="admin-actions">
                 <input id="admin-set-value" class="admin-input" type="number" min="0" step="1" placeholder="Set count…" style="width: 160px" />
                 <button id="admin-apply-set" class="btn">Apply</button>
@@ -178,6 +176,8 @@
                 <button id="admin-user-ban" class="btn danger">Ban</button>
                 <button id="admin-user-unban" class="btn">Unban</button>
                 <button id="admin-user-purge" class="btn danger">Purge from LB</button>
+                <button id="admin-user-grant" class="btn">Grant admin</button>
+                <button id="admin-user-revoke" class="btn danger">Revoke admin</button>
               </div>
 
               <div class="admin-status" id="admin-status"></div>
@@ -218,6 +218,10 @@
       const adminUserBan = document.getElementById('admin-user-ban');
       const adminUserUnban = document.getElementById('admin-user-unban');
       const adminUserPurge = document.getElementById('admin-user-purge');
+      const adminUserGrant = document.getElementById('admin-user-grant');
+      const adminUserRevoke = document.getElementById('admin-user-revoke');
+
+      let myId = null;
 
       // Build reels
       const reels = [];
@@ -287,7 +291,8 @@
       // Offline-aware fetch
       function setOnlineState(online) {
         offlineBar.hidden = online;
-        incBtn.disabled = !online || document.body.classList.contains('is-banned');
+        const banned = document.body.classList.contains('is-banned');
+        incBtn.disabled = !online || banned;
         if (document.body.classList.contains('is-admin')) {
           adminApplySet.disabled = !online;
           adminApplyAdd.disabled = !online;
@@ -296,6 +301,8 @@
           adminUserBan.disabled = !online;
           adminUserUnban.disabled = !online;
           adminUserPurge.disabled = !online;
+          adminUserGrant.disabled = !online;
+          adminUserRevoke.disabled = !online;
         }
       }
       window.addEventListener('online', async () => {
@@ -461,6 +468,37 @@
         } catch (e) { alert('Failed: ' + e.message); }
       });
 
+      adminUserGrant.addEventListener('click', async () => {
+        const id = adminUserId.value.trim(); if (!id) return alert('Enter a user id');
+        try {
+          await fetchJSON('/api/admin/admin', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, admin: true })
+          });
+          if (id === myId) {
+            document.body.classList.add('is-admin');
+            adminPanel.hidden = false;
+            await loadAdminStats();
+          }
+          alert('Granted admin');
+        } catch (e) { alert('Failed: ' + e.message); }
+      });
+
+      adminUserRevoke.addEventListener('click', async () => {
+        const id = adminUserId.value.trim(); if (!id) return alert('Enter a user id');
+        try {
+          await fetchJSON('/api/admin/admin', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, admin: false })
+          });
+          if (id === myId) {
+            document.body.classList.remove('is-admin');
+            adminPanel.hidden = true;
+          }
+          alert('Revoked admin');
+        } catch (e) { alert('Failed: ' + e.message); }
+      });
+
       // Context menu (copy user ID) — no notifications
       const ctxMenu = document.getElementById('ctx-menu');
       const ctxCopy = document.getElementById('ctx-copy-id');
@@ -488,10 +526,8 @@
       });
 
       async function copyText(text) {
-        try {
-          await navigator.clipboard.writeText(text);
-        } catch {
-          // Fallback
+        try { await navigator.clipboard.writeText(text); }
+        catch {
           const ta = document.createElement('textarea');
           ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
           document.body.appendChild(ta); ta.select();
@@ -511,15 +547,10 @@
         ctxMenu.style.left = '-9999px';
         ctxMenu.style.top = '-9999px';
       }
-      document.addEventListener('click', (e) => {
-        if (ctxMenu.hidden) return;
-        if (!e.target.closest('#ctx-menu')) hideCtx();
-      });
+      document.addEventListener('click', (e) => { if (!e.target.closest('#ctx-menu')) hideCtx(); });
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') hideCtx();
-        if (!ctxMenu.hidden && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && ctxTargetId) {
-          copyText(ctxTargetId).then(() => hideCtx());
-        }
+        if (!ctxMenu.hidden && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && ctxTargetId) copyText(ctxTargetId).then(() => hideCtx());
       });
       window.addEventListener('blur', hideCtx);
       window.addEventListener('scroll', hideCtx, true);
@@ -532,7 +563,7 @@
 
         // Get current user, set admin and banned UI
         try {
-          const me = await fetchJSON('/api/me');
+          const me = await fetchJSON('/api/me'); myId = me?.id || null;
           // Admin gate
           if (me?.admin) {
             document.body.classList.add('is-admin');
@@ -550,6 +581,7 @@
             setNumber(0, { animate: false });
           } else {
             document.body.classList.remove('is-banned');
+            incBtn.textContent = '+1';
           }
         } catch {
           document.body.classList.remove('is-admin');
