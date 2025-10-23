@@ -44,19 +44,19 @@
       .lb-count { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: var(--digit); font-weight: 600; font-size: 18px; text-align: right; min-width: 5ch; }
       .empty { opacity: .7; text-align: center; padding: 8px 0; }
 
-      /* Counter */
+      /* Counter block: title above, then counter panel */
+      .counter-block { display: grid; justify-items: start; }
+      .counter-title {
+        margin-left: calc(-1 * var(--panel-pad)); /* align with panel’s left edge */
+        margin-bottom: 6px;
+        opacity: 0.85; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase;
+      }
+
       .counter-wrap { position: relative; display: inline-block; }
       .panel {
         position: absolute; inset: calc(-1 * var(--panel-pad));
         background: var(--panel-bg);
         border-radius: 16px 16px 0 0; z-index: 0;
-      }
-      /* Title overlay at top-left of counter background */
-      .counter-wrap .title {
-        position: absolute; z-index: 2;
-        top: calc(-1 * var(--panel-pad) + 8px);
-        left: calc(-1 * var(--panel-pad) + 12px);
-        opacity: 0.85; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase;
       }
       .counter { position: relative; z-index: 1; display: flex; gap: var(--gap); }
 
@@ -106,6 +106,7 @@
       #leaderboard { transition: opacity .2s ease; }
       body.is-banned #leaderboard { display: none !important; }
       body.is-banned .cta-button { background: #991b1b !important; color: #fff; cursor: not-allowed; }
+      body.is-banned .name-save { background: #991b1b !important; border-color: #5c2a2a; color: #fff; } /* save button red on ban */
       body.is-banned { --digit: #ef4444; }
 
       /* Context menu */
@@ -132,10 +133,12 @@
 
         <!-- Right: Counter + controls -->
         <div class="main">
-          <div class="counter-wrap">
-            <div class="title">GLOBAL CLICKS</div>
-            <div class="panel" aria-hidden="true"></div>
-            <div id="counter" class="counter" aria-label="8-slot counter"></div>
+          <div class="counter-block">
+            <div class="counter-title">GLOBAL CLICKS</div>
+            <div class="counter-wrap">
+              <div class="panel" aria-hidden="true"></div>
+              <div id="counter" class="counter" aria-label="8-slot counter"></div>
+            </div>
           </div>
 
           <button id="inc" class="cta-button" type="button">+1</button>
