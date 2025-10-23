@@ -1,8 +1,9 @@
+// api/[...route].js
 import { getRedis } from '../lib/redis.js';
 import { getClientId } from '../lib/id.js';
 import { isTrueish } from '../lib/adminUser.js';
 
-export const config = { runtime: 'nodejs18.x', memory: 1024, maxDuration: 10 };
+export const config = { runtime: 'nodejs' };
 
 async function readJSON(req) {
   if (req.body && typeof req.body === 'object') return req.body;
