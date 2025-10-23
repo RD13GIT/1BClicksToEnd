@@ -47,7 +47,7 @@
       /* Counter block: title above, then counter panel */
       .counter-block { display: grid; justify-items: start; }
       .counter-title {
-        margin-left: calc(-1 * var(--panel-pad)); /* align with panel’s left edge */
+        margin-left: calc(-1 * var(--panel-pad));
         margin-bottom: 6px;
         opacity: 0.85; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase;
       }
@@ -106,7 +106,7 @@
       #leaderboard { transition: opacity .2s ease; }
       body.is-banned #leaderboard { display: none !important; }
       body.is-banned .cta-button { background: #991b1b !important; color: #fff; cursor: not-allowed; }
-      body.is-banned .name-save { background: #991b1b !important; border-color: #5c2a2a; color: #fff; } /* save button red on ban */
+      body.is-banned .name-save { background: #991b1b !important; border-color: #5c2a2a; color: #fff; }
       body.is-banned { --digit: #ef4444; }
 
       /* Context menu */
@@ -179,8 +179,8 @@
                 <button id="admin-user-ban" class="btn danger">Ban</button>
                 <button id="admin-user-unban" class="btn">Unban</button>
                 <button id="admin-user-purge" class="btn danger">Purge from LB</button>
-                <button id="admin-user-grant" class="btn">Grant admin</button>
-                <button id="admin-user-revoke" class="btn danger">Revoke admin</button>
+                <button id="admin-user-grant" class="btn">Give admin</button>
+                <button id="admin-user-revoke" class="btn danger">Remove admin</button>
               </div>
 
               <div class="admin-status" id="admin-status"></div>
@@ -498,7 +498,7 @@
             document.body.classList.remove('is-admin');
             adminPanel.hidden = true;
           }
-          alert('Revoked admin');
+          alert('Removed admin');
         } catch (e) { alert('Failed: ' + e.message); }
       });
 
@@ -539,7 +539,7 @@
         }
       }
 
-      ctxCopy.addEventListener('click', async () => {
+      document.getElementById('ctx-copy-id').addEventListener('click', async () => {
         if (!ctxTargetId) return;
         await copyText(ctxTargetId);
         hideCtx();
