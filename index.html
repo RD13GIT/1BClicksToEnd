@@ -5,154 +5,103 @@
     <title>Global Counter</title>
     <link rel="icon" href="data:," />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-    <!-- JetBrains Mono for digits -->
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 
     <style>
       :root {
         color-scheme: dark;
-
-        /* Counter layout */
         --slots: 8;
         --digit-w: 64px;
         --digit-h: 5rem;
         --gap: 16px;
         --panel-pad: 14px;
-
-        /* Colors */
-        --bg: #171717;
-        --grid: #202020;
-        --panel-bg: #242424;
-        --slot-bg: #1b1b1b;
-        --slot-border: #4a4a4a;
-        --digit: #8b5cf6;
+        --bg: #171717; --grid: #202020; --panel-bg: #242424; --slot-bg: #1b1b1b; --slot-border: #4a4a4a; --digit: #8b5cf6;
       }
-
       html, body { height: 100%; }
       * { box-sizing: border-box; }
-
       body {
-        margin: 0;
-        display: grid;
-        place-items: center;
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue",
-          Ubuntu, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
-        color: #fff;
-
-        /* Grid background */
-        background-color: var(--bg);
-        background-image:
-          linear-gradient(var(--grid) 1px, transparent 1px),
-          linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+        margin: 0; display: grid; place-items: center; color: #fff;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Ubuntu, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+        background: var(--bg);
+        background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
         background-size: 40px 40px;
       }
+      .stage { display: grid; justify-items: center; gap: 16px; width: 100%; }
+      .title { opacity: 0.85; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 8px; }
+      .offline { background: #3a2323; border: 1px solid #5c2a2a; color: #fecaca; padding: 8px 12px; border-radius: 8px; font-size: 13px; width: min(900px, 92vw); text-align: center; }
 
-      .stage { display: grid; justify-items: center; gap: 28px; }
-      .title { opacity: 0.85; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; }
-
-      /* Two-column layout (leaderboard left, counter right) */
-      .columns {
-        display: grid;
-        gap: 28px;
-        align-items: start;
-        grid-template-columns: 1fr; /* mobile: stack */
-        width: 100%;
-      }
-      @media (min-width: 900px) {
-        .columns {
-          grid-template-columns: minmax(260px, 340px) auto; /* left fixed-ish, right auto */
-          justify-content: center;
-          column-gap: 40px;
-        }
-      }
-
-      /* Right column container */
+      /* Layout: leaderboard left, counter+controls right */
+      .columns { display: grid; gap: 28px; align-items: start; grid-template-columns: 1fr; width: 100%; }
+      @media (min-width: 900px) { .columns { grid-template-columns: minmax(260px, 340px) auto; justify-content: center; column-gap: 40px; } }
       .main { display: grid; gap: 16px; justify-items: center; }
 
-      /* Leaderboard left (narrower) */
-      .leaderboard {
-        display: grid; gap: 12px; width: 100%; max-width: 340px; justify-self: end;
-      }
+      /* Leaderboard */
+      .leaderboard { display: grid; gap: 12px; width: 100%; max-width: 340px; justify-self: end; }
       .lb-title { opacity: 0.8; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; text-align: left; }
       .lb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-      .lb-row {
-        display: grid; grid-template-columns: 36px minmax(0, 14ch) auto; align-items: center; gap: 12px;
+      .lb-row { display: grid; grid-template-columns: 36px minmax(0, 14ch) auto; align-items: center; gap: 12px;
         padding: 10px 14px; background: var(--slot-bg); border: 2px solid var(--slot-border);
-        box-shadow: inset 0 0 0 2px var(--slot-bg), 0 4px 14px rgba(0,0,0,.35); border-radius: 12px;
-      }
+        box-shadow: inset 0 0 0 2px var(--slot-bg), 0 4px 14px rgba(0,0,0,.35); border-radius: 12px; }
       .lb-rank { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: #2a2a2a; color: #cbd5e1; font-size: 12px; font-weight: 700; }
       .lb-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e5e7eb; font-size: 16px; max-width: 14ch; }
-      .lb-count { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--digit); font-weight: 600; font-size: 18px; text-align: right; min-width: 5ch; }
+      .lb-count { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: var(--digit); font-weight: 600; font-size: 18px; text-align: right; min-width: 5ch; }
       .empty { opacity: .7; text-align: center; padding: 8px 0; }
 
-      /* Panel behind counter */
+      /* Counter visuals */
       .counter-wrap { position: relative; display: inline-block; }
-      .panel { position: absolute; inset: calc(-1 * var(--panel-pad)); background: var(--panel-bg); border-radius: 16px 16px 0 0; z-index: 0; }
-
-      /* Counter reels */
+      /* Use your rectangle image for the panel background with a fallback color */
+      .panel {
+        position: absolute; inset: calc(-1 * var(--panel-pad));
+        background: var(--panel-bg) url('/images/background.png') center/cover no-repeat;
+        border-radius: 16px 16px 0 0; z-index: 0;
+      }
       .counter { position: relative; z-index: 1; display: flex; gap: var(--gap); }
+
+      /* Each digit slot uses your slot.png */
       .slot {
         position: relative; width: var(--digit-w); height: var(--digit-h);
-        background: var(--slot-bg); border-radius: 14px; border: 2px solid var(--slot-border);
-        box-shadow: inset 0 0 0 2px var(--slot-bg), 0 4px 14px rgba(0,0,0,.35); overflow: hidden;
+        background: var(--slot-bg) url('/images/slot.png') center/cover no-repeat;
+        border-radius: 14px; border: 2px solid var(--slot-border);
+        box-shadow: inset 0 0 0 2px rgba(0,0,0,0.25), 0 4px 14px rgba(0,0,0,.35);
+        overflow: hidden;
       }
+
       .reel { position: absolute; top: 0; left: 0; right: 0; transform: translateY(calc(-1 * var(--i, 10) * var(--digit-h))); transition: transform var(--t, 900ms) cubic-bezier(.22,.8,.15,1); will-change: transform; }
       .num {
         display: grid; place-items: center; height: var(--digit-h); width: 100%;
-        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         font-weight: 600; font-size: 2.2rem; line-height: 1; font-variant-numeric: tabular-nums;
-        color: var(--digit);
-        text-shadow: 0 0 12px rgba(139, 92, 246, .25), 0 1px 0 rgba(0,0,0,.4);
+        color: var(--digit); text-shadow: 0 0 12px rgba(139, 92, 246, .25), 0 1px 0 rgba(0,0,0,.4);
       }
       @media (prefers-reduced-motion: reduce) { .reel { transition-duration: 0ms !important; } }
 
-      /* Button */
-      .cta-button {
-        display: block; box-sizing: border-box; width: auto;
-        padding: 0.9rem 1.2rem; background: #242424; color: #fff; border: none;
-        border-radius: 0 0 8px 8px; font: inherit; cursor: pointer; text-align: center;
-      }
+      .cta-button { display: block; box-sizing: border-box; width: auto; padding: 0.9rem 1.2rem; background: #242424; color: #fff; border: none; border-radius: 0 0 8px 8px; font: inherit; cursor: pointer; text-align: center; }
       .cta-button:hover { background: #2a2a2a; }
       .cta-button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
-      /* Name form */
       .name-settings { display: grid; gap: 10px; width: auto; }
       .name-form { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
-      .name-input {
-        padding: 10px 12px; border-radius: 10px; border: 2px solid var(--slot-border);
-        background: var(--slot-bg); color: #e5e7eb; font: inherit;
-      }
-      .name-save {
-        padding: 10px 14px; border-radius: 10px; border: 2px solid var(--slot-border);
-        background: #2a2a2a; color: #fff; font: inherit; cursor: pointer;
-      }
+      .name-input { padding: 10px 12px; border-radius: 10px; border: 2px solid var(--slot-border); background: #202020; color: #e5e7eb; font: inherit; }
+      .name-save { padding: 10px 14px; border-radius: 10px; border: 2px solid var(--slot-border); background: #2a2a2a; color: #fff; font: inherit; cursor: pointer; }
       .name-save:hover { background: #333; }
       .name-status { min-height: 1.2em; font-size: 12px; opacity: 0.8; }
 
-      /* Admin panel (only visible if user has Admin=true) */
+      /* Admin panel (hidden by default, shown only if /api/me.admin === true) */
       .admin-panel { display: grid; gap: 12px; width: auto; }
-      .admin-card {
-        display: grid; gap: 10px; padding: 12px 14px; background: var(--slot-bg);
-        border: 2px solid var(--slot-border); border-radius: 12px;
-        box-shadow: inset 0 0 0 2px var(--slot-bg), 0 4px 14px rgba(0,0,0,.35);
-      }
+      .admin-card { display: grid; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.03); border: 2px solid var(--slot-border); border-radius: 12px; box-shadow: inset 0 0 0 2px rgba(0,0,0,0.2), 0 4px 14px rgba(0,0,0,.35); }
       .admin-title { opacity: 0.8; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
       .admin-grid { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; align-items: center; }
       .admin-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-      .admin-input {
-        padding: 8px 10px; border-radius: 10px; border: 2px solid var(--slot-border);
-        background: #202020; color: #e5e7eb; font: inherit; width: 160px;
-      }
+      .admin-input { padding: 8px 10px; border-radius: 10px; border: 2px solid var(--slot-border); background: #202020; color: #e5e7eb; font: inherit; }
       .btn { padding: 8px 12px; border-radius: 10px; border: 2px solid var(--slot-border); background: #2a2a2a; color: #fff; cursor: pointer; }
       .btn:hover { background: #333; }
       .btn.danger { background: #3a2323; border-color: #5c2a2a; }
-      .admin-status { min-height: 1.2em; font-size: 12px; opacity: 0.8; }
     </style>
   </head>
   <body>
     <div class="stage">
       <div class="title">GLOBAL CLICKS</div>
+      <div id="offline" class="offline" hidden>You're offline. Trying to reconnect…</div>
 
       <div class="columns">
         <!-- Left: Leaderboard -->
@@ -178,7 +127,7 @@
             <div class="name-status" id="name-status"></div>
           </section>
 
-          <!-- Admin panel (shown only if /api/me.admin === true) -->
+          <!-- Admin panel (only shown if /api/me.admin === true) -->
           <section class="admin-panel" id="admin-panel" hidden>
             <div class="admin-card">
               <div class="admin-title">Admin</div>
@@ -189,10 +138,22 @@
               </div>
 
               <div class="admin-actions">
-                <input id="admin-set-value" class="admin-input" type="number" min="0" step="1" placeholder="Set count…" />
+                <input id="admin-set-value" class="admin-input" type="number" min="0" step="1" placeholder="Set count…" style="width: 160px" />
                 <button id="admin-apply-set" class="btn">Apply</button>
-                <button id="admin-reset-count" class="btn danger">Reset count</button>
-                <button id="admin-clear-lb" class="btn danger">Clear leaderboard</button>
+
+                <input id="admin-add-delta" class="admin-input" type="number" min="1" step="1" placeholder="Add…" style="width: 120px" />
+                <button id="admin-apply-add" class="btn">Add to count</button>
+              </div>
+
+              <div class="admin-title">User tools</div>
+              <div class="admin-actions">
+                <input id="admin-user-id" class="admin-input" type="text" placeholder="User ID (cid)" style="width: 240px" />
+                <input id="admin-user-delta" class="admin-input" type="number" step="1" placeholder="Δ clicks" style="width: 120px" />
+                <button id="admin-user-add" class="btn">Add clicks</button>
+                <button id="admin-user-remove" class="btn">Remove clicks</button>
+                <button id="admin-user-ban" class="btn danger">Ban</button>
+                <button id="admin-user-unban" class="btn">Unban</button>
+                <button id="admin-user-purge" class="btn danger">Purge from LB</button>
               </div>
 
               <div class="admin-status" id="admin-status"></div>
@@ -203,33 +164,38 @@
     </div>
 
     <script>
-      const SLOTS = 8;
-      const BASE = 900, PER_STEP = 300;
-      const COPIES = 3, COPY_SIZE = 10, REEL_LEN = COPY_SIZE * COPIES, MIDDLE_OFFSET = COPY_SIZE;
+      const SLOTS = 8, BASE = 900, PER_STEP = 300, COPIES = 3, COPY_SIZE = 10, MIDDLE_OFFSET = COPY_SIZE;
 
       const counterEl = document.getElementById('counter');
-      const reels = [];
+      const offlineBar = document.getElementById('offline');
+      const incBtn = document.getElementById('inc');
+
+      const adminPanel = document.getElementById('admin-panel');
+      const adminGcEl = document.getElementById('admin-gc');
+      const adminLbSizeEl = document.getElementById('admin-lbsize');
+      const adminStatus = document.getElementById('admin-status');
+      const adminSetValue = document.getElementById('admin-set-value');
+      const adminApplySet = document.getElementById('admin-apply-set');
+      const adminAddDelta = document.getElementById('admin-add-delta');
+      const adminApplyAdd = document.getElementById('admin-apply-add');
+      const adminUserId = document.getElementById('admin-user-id');
+      const adminUserDelta = document.getElementById('admin-user-delta');
+      const adminUserAdd = document.getElementById('admin-user-add');
+      const adminUserRemove = document.getElementById('admin-user-remove');
+      const adminUserBan = document.getElementById('admin-user-ban');
+      const adminUserUnban = document.getElementById('admin-user-unban');
+      const adminUserPurge = document.getElementById('admin-user-purge');
 
       // Build reels
+      const reels = [];
       for (let i = 0; i < SLOTS; i++) {
-        const slot = document.createElement('div');
-        slot.className = 'slot';
-        const reel = document.createElement('div');
-        reel.className = 'reel';
-        for (let c = 0; c < COPIES; c++) {
-          for (let d = 0; d < 10; d++) {
-            const el = document.createElement('div');
-            el.className = 'num';
-            el.textContent = d;
-            reel.appendChild(el);
-          }
+        const slot = document.createElement('div'); slot.className = 'slot';
+        const reel = document.createElement('div'); reel.className = 'reel';
+        for (let c = 0; c < COPIES; c++) for (let d = 0; d < 10; d++) {
+          const el = document.createElement('div'); el.className = 'num'; el.textContent = d; reel.appendChild(el);
         }
-        const baseline = MIDDLE_OFFSET + 0;
-        reel.style.setProperty('--i', baseline);
-        reel.dataset.index = String(baseline);
-        slot.appendChild(reel);
-        counterEl.appendChild(slot);
-        reels.push(reel);
+        const baseline = MIDDLE_OFFSET + 0; reel.style.setProperty('--i', baseline); reel.dataset.index = String(baseline);
+        slot.appendChild(reel); counterEl.appendChild(slot); reels.push(reel);
       }
 
       function animateReel(reel, targetDigit) {
@@ -241,17 +207,12 @@
         if (forward <= backward) { nextIdx = curIdx + forward; steps = forward; }
         else { nextIdx = curIdx - backward; steps = backward; }
         const dur = BASE + PER_STEP * steps;
-        reel.style.setProperty('--t', dur + 'ms');
-        reel.style.setProperty('--i', nextIdx);
-        reel.dataset.index = String(nextIdx);
+        reel.style.setProperty('--t', dur + 'ms'); reel.style.setProperty('--i', nextIdx); reel.dataset.index = String(nextIdx);
         const onEnd = (e) => {
           if (e.propertyName !== 'transform') return;
           reel.removeEventListener('transitionend', onEnd);
           const baseline = MIDDLE_OFFSET + (nextIdx % 10);
-          reel.style.setProperty('--t', '0ms');
-          reel.style.setProperty('--i', baseline);
-          void reel.offsetWidth;
-          reel.style.removeProperty('--t');
+          reel.style.setProperty('--t', '0ms'); reel.style.setProperty('--i', baseline); void reel.offsetWidth; reel.style.removeProperty('--t');
           reel.dataset.index = String(baseline);
         };
         reel.addEventListener('transitionend', onEnd);
@@ -260,19 +221,15 @@
       let currentValue = 0;
       function setNumber(n, { animate = true } = {}) {
         const next = Math.max(0, Math.floor(n));
-        const curStr  = String(currentValue).padStart(SLOTS, '0');
+        const curStr = String(currentValue).padStart(SLOTS, '0');
         const nextStr = String(next).padStart(SLOTS, '0');
         for (let i = 0; i < SLOTS; i++) {
           const reel = reels[i];
-          const fromDigit = +curStr[i];
-          const toDigit   = +nextStr[i];
+          const fromDigit = +curStr[i]; const toDigit = +nextStr[i];
           if (!animate) {
             const baseline = MIDDLE_OFFSET + toDigit;
-            reel.style.setProperty('--t', '0ms');
-            reel.style.setProperty('--i', baseline);
-            reel.dataset.index = String(baseline);
-            void reel.offsetWidth;
-            reel.style.removeProperty('--t');
+            reel.style.setProperty('--t', '0ms'); reel.style.setProperty('--i', baseline); reel.dataset.index = String(baseline);
+            void reel.offsetWidth; reel.style.removeProperty('--t');
           } else if (fromDigit !== toDigit) {
             animateReel(reel, toDigit);
           }
@@ -280,15 +237,11 @@
         currentValue = next;
       }
 
-      // Match panel width for button/name/admin
+      // Match panel width (button, name, admin)
       (function sizeToPanel() {
         const panel = document.querySelector('.panel');
         const wrap = document.querySelector('.counter-wrap');
-        const elements = [
-          document.querySelector('.cta-button'),
-          document.querySelector('#name-settings'),
-          document.querySelector('#admin-panel'),
-        ].filter(Boolean);
+        const elements = [document.querySelector('.cta-button'), document.querySelector('#name-settings'), document.querySelector('#admin-panel')].filter(Boolean);
         if (!panel || !wrap || !elements.length) return;
         const setWidth = () => {
           const w = Math.ceil(panel.getBoundingClientRect().width);
@@ -299,40 +252,57 @@
         if ('ResizeObserver' in window) new ResizeObserver(setWidth).observe(wrap);
       })();
 
-      // Networking helper
-      async function fetchJSON(url, opts) {
-        const res = await fetch(url, opts);
-        const text = await res.text();
-        let data = {};
-        try { data = text ? JSON.parse(text) : {}; } catch {}
-        if (!res.ok) throw new Error(JSON.stringify(data?.error ? { error: data.error } : data));
-        return data;
+      // Offline-aware fetch
+      function setOnlineState(online) {
+        offlineBar.hidden = online;
+        incBtn.disabled = !online;
+        if (!adminPanel.hidden) {
+          adminApplySet.disabled = !online;
+          adminApplyAdd.disabled = !online;
+          adminUserAdd.disabled = !online;
+          adminUserRemove.disabled = !online;
+          adminUserBan.disabled = !online;
+          adminUserUnban.disabled = !online;
+          adminUserPurge.disabled = !online;
+        }
+      }
+      window.addEventListener('online', async () => {
+        setOnlineState(true);
+        await Promise.allSettled([refreshCount(), refreshLeaderboard()]);
+        if (!adminPanel.hidden) await loadAdminStats();
+      });
+      window.addEventListener('offline', () => setOnlineState(false));
+
+      async function fetchJSON(url, opts = {}) {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 10000);
+        try {
+          const res = await fetch(url, { ...opts, signal: ctrl.signal });
+          const text = await res.text();
+          let data = {};
+          try { data = text ? JSON.parse(text) : {}; } catch {}
+          if (!res.ok) throw new Error(data?.error || res.statusText || 'Request failed');
+          return data;
+        } finally { clearTimeout(t); }
       }
 
-      // Count
+      // API calls
       async function refreshCount() {
         try {
           const { count } = await fetchJSON('/api/count');
+          setOnlineState(true);
           if (count !== currentValue) setNumber(count, { animate: true });
-        } catch (e) {
-          console.error('poll error (count)', e);
-        }
+        } catch (e) { console.error('poll error (count)', e); }
       }
 
-      // Leaderboard
       const lbList = document.getElementById('lb-list');
       function renderLeaderboard(leaders = []) {
         lbList.innerHTML = '';
         if (!leaders.length) {
-          const li = document.createElement('li');
-          li.className = 'empty';
-          li.textContent = 'No entries yet.';
-          lbList.appendChild(li);
-          return;
+          const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'No entries yet.'; lbList.appendChild(li); return;
         }
         leaders.slice(0, 10).forEach((row, idx) => {
-          const li = document.createElement('li');
-          li.className = 'lb-row';
+          const li = document.createElement('li'); li.className = 'lb-row';
           const rank = document.createElement('div'); rank.className = 'lb-rank'; rank.textContent = idx + 1;
           const name = document.createElement('div'); name.className = 'lb-name'; name.textContent = row.name || 'Anonymous';
           const count = document.createElement('div'); count.className = 'lb-count'; count.textContent = (row.count ?? 0).toLocaleString();
@@ -342,23 +312,26 @@
       async function refreshLeaderboard() {
         try {
           const { leaders } = await fetchJSON('/api/leaderboard');
+          setOnlineState(true);
           renderLeaderboard(Array.isArray(leaders) ? leaders : []);
-        } catch (e) {
-          console.error('poll error (leaderboard)', e);
-        }
+        } catch (e) { console.error('poll error (leaderboard)', e); }
       }
 
-      // Increment
-      const incBtn = document.getElementById('inc');
       incBtn.addEventListener('click', async () => {
         incBtn.disabled = true;
         try {
           const { count } = await fetchJSON('/api/increment', { method: 'POST' });
+          setOnlineState(true);
           setNumber(count, { animate: true });
           refreshLeaderboard();
         } catch (err) {
           console.error(err);
-          alert('Failed to increment. Try again.');
+          if (String(err.message).includes('Banned')) {
+            alert('You have been banned from clicking.');
+            incBtn.disabled = true;
+          } else {
+            alert('Failed to increment. Try again.');
+          }
         } finally {
           incBtn.disabled = false;
         }
@@ -372,107 +345,108 @@
       async function loadName() {
         try {
           const { name } = await fetchJSON('/api/name');
+          setOnlineState(true);
           if (typeof name === 'string' && name) nameInput.value = name;
         } catch {}
       }
-
       nameForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const name = nameInput.value.trim().replace(/\s+/g, ' ');
-        if (name.length < 2 || name.length > 32) {
-          nameStatus.textContent = 'Name must be 2–32 characters.';
-          return;
-        }
+        if (name.length < 2 || name.length > 32) { nameStatus.textContent = 'Name must be 2–32 characters.'; return; }
         nameStatus.textContent = 'Saving...';
         try {
-          await fetch('/api/name', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
-          });
+          await fetchJSON('/api/name', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+          setOnlineState(true);
           nameStatus.textContent = 'Saved ✓';
           refreshLeaderboard();
-        } catch (e) {
-          console.error(e);
-          nameStatus.textContent = 'Failed to save name.';
-        } finally {
-          setTimeout(() => (nameStatus.textContent = ''), 2000);
-        }
+        } catch (e) { console.error(e); nameStatus.textContent = 'Failed to save name.'; }
+        finally { setTimeout(() => (nameStatus.textContent = ''), 2000); }
       });
 
-      // Admin panel
-      const adminPanel = document.getElementById('admin-panel');
-      const adminGcEl = document.getElementById('admin-gc');
-      const adminLbSizeEl = document.getElementById('admin-lbsize');
-      const adminStatus = document.getElementById('admin-status');
-      const adminSetValue = document.getElementById('admin-set-value');
-      const adminApplySet = document.getElementById('admin-apply-set');
-      const adminResetCount = document.getElementById('admin-reset-count');
-      const adminClearLb = document.getElementById('admin-clear-lb');
-
+      // Admin
       async function loadAdminStats() {
         try {
           adminStatus.textContent = 'Loading…';
           const { global_count, leaderboard_size } = await fetchJSON('/api/admin/stats');
+          setOnlineState(true);
           adminGcEl.textContent = global_count.toLocaleString();
           adminLbSizeEl.textContent = leaderboard_size.toLocaleString();
           adminStatus.textContent = '';
-        } catch (e) {
-          adminStatus.textContent = 'Error: ' + (e.message || e);
-        }
+        } catch (e) { adminStatus.textContent = 'Error: ' + (e.message || e); }
       }
 
       adminApplySet.addEventListener('click', async () => {
         const val = Math.floor(Number(adminSetValue.value));
         if (!Number.isFinite(val) || val < 0) return alert('Enter a non-negative integer');
         try {
-          await fetchJSON('/api/admin/set-count', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ value: val })
-          });
+          await fetchJSON('/api/admin/set-count', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: val }) });
           await Promise.all([loadAdminStats(), refreshCount()]);
           alert('Count set');
         } catch (e) { alert('Failed: ' + e.message); }
       });
 
-      async function doReset(scope) {
-        const confirmWord = prompt(`Type RESET to confirm ${scope} reset`);
-        if (confirmWord !== 'RESET') return;
+      adminApplyAdd.addEventListener('click', async () => {
+        const delta = Math.floor(Number(adminAddDelta.value));
+        if (!Number.isFinite(delta) || delta <= 0) return alert('Enter a positive integer');
         try {
-          await fetchJSON('/api/admin/reset', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ scope, confirm: 'RESET' })
-          });
-          await Promise.all([loadAdminStats(), refreshCount(), refreshLeaderboard()]);
-          alert('Done');
+          await fetchJSON('/api/admin/add-count', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ delta }) });
+          await Promise.all([loadAdminStats(), refreshCount()]);
+          adminAddDelta.value = '';
+          alert('Added to count');
         } catch (e) { alert('Failed: ' + e.message); }
-      }
-      adminResetCount.addEventListener('click', () => doReset('count'));
-      adminClearLb.addEventListener('click', () => doReset('leaderboard'));
+      });
 
-      // Init
-      (async function init() {
+      adminUserAdd.addEventListener('click', async () => {
+        const id = adminUserId.value.trim(); const delta = Math.floor(Number(adminUserDelta.value));
+        if (!id) return alert('Enter a user id'); if (!Number.isFinite(delta) || delta <= 0) return alert('Enter a positive integer');
         try {
-          const { count } = await fetchJSON('/api/count');
-          setNumber(count, { animate: false });
-        } catch {}
+          await fetchJSON('/api/admin/user-delta', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, delta }) });
+          await refreshLeaderboard();
+          alert('User clicks increased');
+        } catch (e) { alert('Failed: ' + e.message); }
+      });
+
+      adminUserRemove.addEventListener('click', async () => {
+        const id = adminUserId.value.trim(); const delta = Math.floor(Number(adminUserDelta.value));
+        if (!id) return alert('Enter a user id'); if (!Number.isFinite(delta) || delta <= 0) return alert('Enter a positive integer');
+        try {
+          await fetchJSON('/api/admin/user-delta', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, delta: -delta }) });
+          await refreshLeaderboard();
+          alert('User clicks decreased');
+        } catch (e) { alert('Failed: ' + e.message); }
+      });
+
+      adminUserBan.addEventListener('click', async () => {
+        const id = adminUserId.value.trim(); if (!id) return alert('Enter a user id');
+        const purge = confirm('Also purge this user from the leaderboard?');
+        try {
+          await fetchJSON('/api/admin/ban', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, banned: true, purge }) });
+          await refreshLeaderboard();
+          alert('User banned' + (purge ? ' and purged' : ''));
+        } catch (e) { alert('Failed: ' + e.message); }
+      });
+
+      adminUserUnban.addEventListener('click', async () => {
+        const id = adminUserId.value.trim(); if (!id) return alert('Enter a user id');
+        try {
+          await fetchJSON('/api/admin/ban', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, banned: false, purge: false }) });
+          alert('User unbanned');
+        } catch (e) { alert('Failed: ' + e.message); }
+      });
+
+      (async function init() {
+        setOnlineState(navigator.onLine);
+        try { const { count } = await fetchJSON('/api/count'); setNumber(count, { animate: false }); } catch {}
         await loadName();
         await refreshLeaderboard();
 
-        // Show admin panel if current user has Admin=true
+        // Show admin only if admin in DB
         try {
           const me = await fetchJSON('/api/me');
-          if (me?.admin) {
-            adminPanel.hidden = false;
-            await loadAdminStats();
-          } else {
-            adminPanel.hidden = true;
-          }
+          if (me?.admin) { adminPanel.hidden = false; await loadAdminStats(); }
+          else { adminPanel.hidden = true; }
         } catch { adminPanel.hidden = true; }
 
-        // Polling
         let countTimer, lbTimer;
         const schedule = () => {
           clearInterval(countTimer); clearInterval(lbTimer);
