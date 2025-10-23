@@ -27,13 +27,13 @@
         background-size: 40px 40px;
       }
       .stage { display: grid; justify-items: center; gap: 16px; width: 100%; }
-      .title { opacity: 0.85; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 8px; }
       .offline { background: #3a2323; border: 1px solid #5c2a2a; color: #fecaca; padding: 8px 12px; border-radius: 8px; font-size: 13px; width: min(900px, 92vw); text-align: center; }
 
       .columns { display: grid; gap: 28px; align-items: start; grid-template-columns: 1fr; width: 100%; }
       @media (min-width: 900px) { .columns { grid-template-columns: minmax(260px, 340px) auto; justify-content: center; column-gap: 40px; } }
       .main { display: grid; gap: 16px; justify-items: center; }
 
+      /* Leaderboard */
       .leaderboard { display: grid; gap: 12px; width: 100%; max-width: 340px; justify-self: end; }
       .lb-title { opacity: 0.8; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; text-align: left; }
       .lb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
@@ -45,11 +45,19 @@
       .lb-count { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: var(--digit); font-weight: 600; font-size: 18px; text-align: right; min-width: 5ch; }
       .empty { opacity: .7; text-align: center; padding: 8px 0; }
 
+      /* Counter */
       .counter-wrap { position: relative; display: inline-block; }
       .panel {
         position: absolute; inset: calc(-1 * var(--panel-pad));
         background: var(--panel-bg);
         border-radius: 16px 16px 0 0; z-index: 0;
+      }
+      /* Title overlay (top-left of the counter background) */
+      .counter-wrap .title {
+        position: absolute; z-index: 2;
+        top: calc(-1 * var(--panel-pad) + 8px);
+        left: calc(-1 * var(--panel-pad) + 12px);
+        opacity: 0.85; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase;
       }
       .counter { position: relative; z-index: 1; display: flex; gap: var(--gap); }
 
@@ -95,25 +103,27 @@
       #admin-panel { display: none !important; }
       body.is-admin #admin-panel { display: grid !important; }
 
-      /* Context menu for leaderboard rows */
+      /* Banned state UI */
+      body.is-banned #leaderboard { display: none !important; }
+      body.is-banned .cta-button {
+        background: #991b1b !important; color: #fff;
+        cursor: not-allowed;
+      }
+      body.is-banned { --digit: #ef4444; } /* digits turn red */
+      
+      /* Context menu */
       .ctx-menu {
         position: fixed; z-index: 1000; min-width: 180px;
         background: #1f2937; border: 1px solid #374151; border-radius: 10px;
         box-shadow: 0 14px 40px rgba(0,0,0,.45); padding: 6px; color: #e5e7eb;
       }
-      .ctx-item {
-        display: flex; align-items: center; gap: 8px;
-        padding: 8px 10px; border-radius: 8px; cursor: pointer; user-select: none;
-      }
+      .ctx-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; cursor: pointer; user-select: none; }
       .ctx-item:hover { background: #2b3442; }
-      .ctx-kbd {
-        margin-left: auto; opacity: .6; font-size: 12px; border: 1px solid #4b5563; padding: 0 6px; border-radius: 6px;
-      }
+      .ctx-kbd { margin-left: auto; opacity: .6; font-size: 12px; border: 1px solid #4b5563; padding: 0 6px; border-radius: 6px; }
     </style>
   </head>
   <body>
     <div class="stage">
-      <div class="title">GLOBAL CLICKS</div>
       <div id="offline" class="offline" hidden>You're offline. Trying to reconnect…</div>
 
       <div class="columns">
@@ -126,6 +136,7 @@
         <!-- Right: Counter + controls -->
         <div class="main">
           <div class="counter-wrap">
+            <div class="title">GLOBAL CLICKS</div>
             <div class="panel" aria-hidden="true"></div>
             <div id="counter" class="counter" aria-label="8-slot counter"></div>
           </div>
@@ -223,11 +234,10 @@
       function animateReel(reel, targetDigit) {
         const curIdx = Number(reel.dataset.index || (MIDDLE_OFFSET + 0));
         const curVal = curIdx % 10;
-        const forward = (targetDigit - curVal + 10) % 10;
-        const backward = (curVal - targetDigit + 10) % 10;
-        let nextIdx, steps;
-        if (forward <= backward) { nextIdx = curIdx + forward; steps = forward; }
-        else { nextIdx = curIdx - backward; steps = backward; }
+        const fwd = (targetDigit - curVal + 10) % 10;
+        const back = (curVal - targetDigit + 10) % 10;
+        const steps = Math.min(fwd, back);
+        const nextIdx = (fwd <= back) ? (curIdx + fwd) : (curIdx - back);
         const dur = BASE + PER_STEP * steps;
         reel.style.setProperty('--t', dur + 'ms'); reel.style.setProperty('--i', nextIdx); reel.dataset.index = String(nextIdx);
         const onEnd = (e) => {
@@ -277,7 +287,7 @@
       // Offline-aware fetch
       function setOnlineState(online) {
         offlineBar.hidden = online;
-        incBtn.disabled = !online;
+        incBtn.disabled = !online || document.body.classList.contains('is-banned');
         if (document.body.classList.contains('is-admin')) {
           adminApplySet.disabled = !online;
           adminApplyAdd.disabled = !online;
@@ -313,7 +323,9 @@
         try {
           const { count } = await fetchJSON('/api/count');
           setOnlineState(true);
-          if (count !== currentValue) setNumber(count, { animate: true });
+          if (!document.body.classList.contains('is-banned') && count !== currentValue) {
+            setNumber(count, { animate: true });
+          }
         } catch (e) { console.error('poll error (count)', e); }
       }
 
@@ -325,7 +337,7 @@
         }
         leaders.slice(0, 10).forEach((row, idx) => {
           const li = document.createElement('li'); li.className = 'lb-row';
-          li.dataset.id = row.id;           // <-- store user id
+          li.dataset.id = row.id;
           li.title = 'Right-click to copy ID';
           const rank = document.createElement('div'); rank.className = 'lb-rank'; rank.textContent = idx + 1;
           const name = document.createElement('div'); name.className = 'lb-name'; name.textContent = row.name || 'Anonymous';
@@ -337,11 +349,14 @@
         try {
           const { leaders } = await fetchJSON('/api/leaderboard');
           setOnlineState(true);
-          renderLeaderboard(Array.isArray(leaders) ? leaders : []);
+          if (!document.body.classList.contains('is-banned')) {
+            renderLeaderboard(Array.isArray(leaders) ? leaders : []);
+          }
         } catch (e) { console.error('poll error (leaderboard)', e); }
       }
 
       incBtn.addEventListener('click', async () => {
+        if (document.body.classList.contains('is-banned')) return;
         incBtn.disabled = true;
         try {
           const { count } = await fetchJSON('/api/increment', { method: 'POST' });
@@ -350,14 +365,8 @@
           refreshLeaderboard();
         } catch (err) {
           console.error(err);
-          if (String(err.message).includes('Banned')) {
-            alert('You have been banned from clicking.');
-            incBtn.disabled = true;
-          } else {
-            alert('Failed to increment. Try again.');
-          }
         } finally {
-          incBtn.disabled = false;
+          if (!document.body.classList.contains('is-banned')) incBtn.disabled = false;
         }
       });
 
@@ -405,7 +414,6 @@
         try {
           await fetchJSON('/api/admin/set-count', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: val }) });
           await Promise.all([loadAdminStats(), refreshCount()]);
-          alert('Count set');
         } catch (e) { alert('Failed: ' + e.message); }
       });
 
@@ -416,7 +424,6 @@
           await fetchJSON('/api/admin/add-count', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ delta }) });
           await Promise.all([loadAdminStats(), refreshCount()]);
           adminAddDelta.value = '';
-          alert('Added to count');
         } catch (e) { alert('Failed: ' + e.message); }
       });
 
@@ -426,7 +433,6 @@
         try {
           await fetchJSON('/api/admin/user-delta', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, delta }) });
           await refreshLeaderboard();
-          alert('User clicks increased');
         } catch (e) { alert('Failed: ' + e.message); }
       });
 
@@ -436,7 +442,6 @@
         try {
           await fetchJSON('/api/admin/user-delta', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, delta: -delta }) });
           await refreshLeaderboard();
-          alert('User clicks decreased');
         } catch (e) { alert('Failed: ' + e.message); }
       });
 
@@ -446,7 +451,6 @@
         try {
           await fetchJSON('/api/admin/ban', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, banned: true, purge }) });
           await refreshLeaderboard();
-          alert('User banned' + (purge ? ' and purged' : ''));
         } catch (e) { alert('Failed: ' + e.message); }
       });
 
@@ -454,25 +458,23 @@
         const id = adminUserId.value.trim(); if (!id) return alert('Enter a user id');
         try {
           await fetchJSON('/api/admin/ban', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, banned: false, purge: false }) });
-          alert('User unbanned');
         } catch (e) { alert('Failed: ' + e.message); }
       });
 
-      // Context menu (copy user ID)
+      // Context menu (copy user ID) — no notifications
       const ctxMenu = document.getElementById('ctx-menu');
       const ctxCopy = document.getElementById('ctx-copy-id');
       let ctxTargetId = '';
 
       lbList.addEventListener('contextmenu', (e) => {
         const row = e.target.closest('.lb-row');
-        if (!row) return; // let default context menu elsewhere
+        if (!row) return;
         e.preventDefault();
         ctxTargetId = row.dataset.id || '';
         if (!ctxTargetId) return;
 
-        // Show menu near cursor, clamped to viewport
         ctxMenu.hidden = false;
-        ctxMenu.style.visibility = 'hidden'; // measure first
+        ctxMenu.style.visibility = 'hidden';
         requestAnimationFrame(() => {
           const rect = ctxMenu.getBoundingClientRect();
           const pad = 8;
@@ -488,24 +490,20 @@
       async function copyText(text) {
         try {
           await navigator.clipboard.writeText(text);
-          return true;
         } catch {
           // Fallback
           const ta = document.createElement('textarea');
           ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
           document.body.appendChild(ta); ta.select();
-          try { document.execCommand('copy'); } catch { return false; }
+          try { document.execCommand('copy'); } catch {}
           finally { document.body.removeChild(ta); }
-          return true;
         }
       }
 
       ctxCopy.addEventListener('click', async () => {
         if (!ctxTargetId) return;
-        const ok = await copyText(ctxTargetId);
+        await copyText(ctxTargetId);
         hideCtx();
-        if (ok) alert('Copied user ID: ' + ctxTargetId);
-        else alert('Failed to copy. You can select and copy manually: ' + ctxTargetId);
       });
 
       function hideCtx() {
@@ -519,7 +517,6 @@
       });
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') hideCtx();
-        // Support Ctrl+C on the menu to copy
         if (!ctxMenu.hidden && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && ctxTargetId) {
           copyText(ctxTargetId).then(() => hideCtx());
         }
@@ -533,9 +530,10 @@
         await loadName();
         await refreshLeaderboard();
 
-        // Show admin only if admin; also toggle body class
+        // Get current user, set admin and banned UI
         try {
           const me = await fetchJSON('/api/me');
+          // Admin gate
           if (me?.admin) {
             document.body.classList.add('is-admin');
             adminPanel.hidden = false;
@@ -543,6 +541,15 @@
           } else {
             document.body.classList.remove('is-admin');
             adminPanel.hidden = true;
+          }
+          // Banned gate
+          if (me?.banned) {
+            document.body.classList.add('is-banned');
+            incBtn.textContent = 'BANNED';
+            incBtn.disabled = true;
+            setNumber(0, { animate: false });
+          } else {
+            document.body.classList.remove('is-banned');
           }
         } catch {
           document.body.classList.remove('is-admin');
