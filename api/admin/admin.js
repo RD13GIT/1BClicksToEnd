@@ -30,8 +30,10 @@ export default async function handler(req, res) {
     const makeAdmin = isTrueish(body.admin);
 
     const redis = await getRedis();
-    // Set both keys for compatibility
-    await redis.hSet(`user:${id}`, { Admin: makeAdmin ? 'true' : 'false', admin: makeAdmin ? 'true' : 'false' });
+    await redis.hSet(`user:${id}`, {
+      Admin: makeAdmin ? 'true' : 'false',
+      admin: makeAdmin ? 'true' : 'false'
+    });
 
     res.status(200).json({ ok: true, id, admin: makeAdmin });
   } catch (e) {
