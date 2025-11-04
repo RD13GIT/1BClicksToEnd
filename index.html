@@ -220,6 +220,7 @@
 
       let myId = null;
 
+      // Build reels
       const reels = [];
       for (let i = 0; i < SLOTS; i++) {
         const slot = document.createElement('div'); slot.className = 'slot';
@@ -269,6 +270,7 @@
         currentValue = next;
       }
 
+      // Match panel width for controls
       (function sizeToPanel() {
         const panel = document.querySelector('.panel');
         const wrap = document.querySelector('.counter-wrap');
@@ -485,11 +487,30 @@
         } catch (e) { alert('Failed: ' + e.message); }
       });
 
+      // Purge from leaderboard only
+      adminUserPurge.addEventListener('click', async () => {
+        const id = adminUserId.value.trim();
+        if (!id) return alert('Enter a user id');
+        if (!confirm(`Permanently remove ${id} from the leaderboard?`)) return;
+        try {
+          const res = await fetchJSON('/api/admin/ban', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, banned: false, purge: true })
+          });
+          if (typeof res.removed === 'number') {
+            // Optional info; comment out if you don't want alerts
+            // alert(`Purged from leaderboard (removed=${res.removed}).`);
+          }
+          await refreshLeaderboard();
+        } catch (e) { alert('Failed: ' + e.message); }
+      });
+
       adminUserGrant.addEventListener('click', async () => {
         const id = adminUserId.value.trim(); if (!id) return alert('Enter a user id');
         try {
           await fetchJSON('/api/admin/admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, admin: true }) });
-          await checkAdminRole(); // reflect instantly
+          await checkAdminRole();
           alert('Granted admin');
         } catch (e) { alert('Failed: ' + e.message); }
       });
@@ -498,12 +519,14 @@
         const id = adminUserId.value.trim(); if (!id) return alert('Enter a user id');
         try {
           await fetchJSON('/api/admin/admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, admin: false }) });
-          await checkAdminRole(); // reflect instantly
+          await checkAdminRole();
           alert('Removed admin');
         } catch (e) { alert('Failed: ' + e.message); }
       });
 
+      // Context menu (copy user ID)
       const ctxMenu = document.getElementById('ctx-menu');
+      const ctxCopy = document.getElementById('ctx-copy-id');
       let ctxTargetId = '';
 
       lbList.addEventListener('contextmenu', (e) => {
@@ -513,14 +536,14 @@
         ctxTargetId = row.dataset.id || '';
         if (!ctxTargetId) return;
 
-        const rectPad = 8;
         ctxMenu.hidden = false;
         ctxMenu.style.visibility = 'hidden';
         requestAnimationFrame(() => {
           const rect = ctxMenu.getBoundingClientRect();
+          const pad = 8;
           let x = e.clientX, y = e.clientY;
-          x = Math.min(x, window.innerWidth - rect.width - rectPad);
-          y = Math.min(y, window.innerHeight - rect.height - rectPad);
+          x = Math.min(x, window.innerWidth - rect.width - pad);
+          y = Math.min(y, window.innerHeight - rect.height - pad);
           ctxMenu.style.left = x + 'px';
           ctxMenu.style.top = y + 'px';
           ctxMenu.style.visibility = 'visible';
