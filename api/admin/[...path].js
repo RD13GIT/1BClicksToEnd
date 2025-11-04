@@ -9,7 +9,10 @@ async function readJSON(req) {
   return new Promise((resolve) => {
     let raw = '';
     req.on('data', (c) => (raw += c));
-    req.on('end', () => { try { resolve(JSON.parse(raw || '{}')); } catch { resolve({}); } });
+    req.on('end', () => {
+      try { resolve(JSON.parse(raw || '{}')); }
+      catch { resolve({}); }
+    });
   });
 }
 
@@ -17,20 +20,24 @@ export default async function handler(req, res) {
   const proto = req.headers['x-forwarded-proto'] || 'http';
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost';
   const url = new URL(req.url, `${proto}://${host}`);
+  // Normalize: strip /api/admin, decode, and trim slashes
   const route = decodeURIComponent(url.pathname.replace(/^\/api\/admin\/?/, '')).replace(/^\/+|\/+$/g, '');
-  const seg = route.split('/')[0] || '';
+  const seg = (route.split('/')[0] || '').toLowerCase();
 
   try {
+    // Gate all admin routes
     const auth = await requireAdminUser(req, res);
     if (!auth.ok) return;
 
-    if (seg === 'stats') {
+    // Stats (alias: status)
+    if (seg === 'stats' || seg === 'status') {
       if (req.method !== 'GET') { res.setHeader('Allow', 'GET'); return res.status(405).send('Method Not Allowed'); }
       const r = await getRedis();
       const [gc, total] = await Promise.all([r.get('global_count'), r.zCard('leaderboard')]);
       return res.status(200).json({ global_count: Number(gc) || 0, leaderboard_size: Number(total) || 0 });
     }
 
+    // Set global count (POST { value })
     if (seg === 'set-count') {
       if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).send('Method Not Allowed'); }
       const body = await readJSON(req);
@@ -41,6 +48,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, value });
     }
 
+    // Add to global count (POST { delta })
     if (seg === 'add-count') {
       if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).send('Method Not Allowed'); }
       const body = await readJSON(req);
@@ -51,6 +59,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, count });
     }
 
+    // Adjust a user's clicks (POST { id, delta })
     if (seg === 'user-delta') {
       if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).send('Method Not Allowed'); }
       const body = await readJSON(req);
@@ -60,10 +69,14 @@ export default async function handler(req, res) {
       if (!Number.isFinite(delta) || delta === 0) return res.status(400).json({ error: 'delta must be a non-zero integer' });
       const r = await getRedis();
       let newScore = await r.zIncrBy('leaderboard', delta, id);
-      if (newScore < 0) { await r.zAdd('leaderboard', [{ value: id, score: 0 }]); newScore = 0; }
+      if (newScore < 0) {
+        await r.zAdd('leaderboard', [{ value: id, score: 0 }]);
+        newScore = 0;
+      }
       return res.status(200).json({ ok: true, id, count: Number(newScore) });
     }
 
+    // Ban/unban user (POST { id, banned, purge? })
     if (seg === 'ban') {
       if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).send('Method Not Allowed'); }
       const body = await readJSON(req);
@@ -77,6 +90,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, id, banned, purged: purge });
     }
 
+    // Grant/revoke admin (POST { id, admin })
     if (seg === 'admin') {
       if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).send('Method Not Allowed'); }
       const body = await readJSON(req);
@@ -84,10 +98,14 @@ export default async function handler(req, res) {
       if (!id) return res.status(400).json({ error: 'Missing id' });
       const makeAdmin = isTrueish(body?.admin);
       const r = await getRedis();
-      await r.hSet(`user:${id}`, { Admin: makeAdmin ? 'true' : 'false', admin: makeAdmin ? 'true' : 'false' });
+      await r.hSet(`user:${id}`, {
+        Admin: makeAdmin ? 'true' : 'false',
+        admin: makeAdmin ? 'true' : 'false'
+      });
       return res.status(200).json({ ok: true, id, admin: makeAdmin });
     }
 
+    // Unknown admin subroute
     return res.status(404).json({ error: 'Unknown admin route', route });
   } catch (e) {
     console.error('ADMIN API error:', e);
