@@ -487,21 +487,18 @@
         } catch (e) { alert('Failed: ' + e.message); }
       });
 
-      // Purge from leaderboard only
+      // Purge from leaderboard only (no ban)
       adminUserPurge.addEventListener('click', async () => {
         const id = adminUserId.value.trim();
         if (!id) return alert('Enter a user id');
         if (!confirm(`Permanently remove ${id} from the leaderboard?`)) return;
         try {
-          const res = await fetchJSON('/api/admin/ban', {
+          const res = await fetchJSON('/api/admin/purge', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, banned: false, purge: true })
+            body: JSON.stringify({ id })
           });
-          if (typeof res.removed === 'number') {
-            // Optional info; comment out if you don't want alerts
-            // alert(`Purged from leaderboard (removed=${res.removed}).`);
-          }
+          // Optionally: alert(`Purged. Removed=${res.removed || 0}`);
           await refreshLeaderboard();
         } catch (e) { alert('Failed: ' + e.message); }
       });
