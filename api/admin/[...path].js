@@ -15,6 +15,7 @@ async function readJSON(req) {
     });
   });
 }
+function noStore(res) { res.setHeader('Cache-Control', 'no-store'); }
 
 export default async function handler(req, res) {
   const proto = req.headers['x-forwarded-proto'] || 'http';
@@ -32,9 +33,11 @@ export default async function handler(req, res) {
       if (req.method !== 'GET') { res.setHeader('Allow', 'GET'); return res.status(405).send('Method Not Allowed'); }
       const r = await getRedis();
       const [gc, total] = await Promise.all([r.get('global_count'), r.zCard('leaderboard')]);
+      noStore(res);
       return res.status(200).json({ global_count: Number(gc) || 0, leaderboard_size: Number(total) || 0 });
     }
 
+    // Set global count (POST { value })
     if (seg === 'set-count') {
       if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).send('Method Not Allowed'); }
       const body = await readJSON(req);
@@ -42,9 +45,11 @@ export default async function handler(req, res) {
       if (!Number.isFinite(value) || value < 0 || value > 1e15) return res.status(400).json({ error: 'Invalid value' });
       const r = await getRedis();
       await r.set('global_count', String(value));
+      noStore(res);
       return res.status(200).json({ ok: true, value });
     }
 
+    // Add to global count (POST { delta })
     if (seg === 'add-count') {
       if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).send('Method Not Allowed'); }
       const body = await readJSON(req);
@@ -52,9 +57,11 @@ export default async function handler(req, res) {
       if (!Number.isFinite(delta) || delta <= 0) return res.status(400).json({ error: 'delta must be a positive integer' });
       const r = await getRedis();
       const count = await r.incrBy('global_count', delta);
+      noStore(res);
       return res.status(200).json({ ok: true, count });
     }
 
+    // Adjust a user's clicks (POST { id, delta })
     if (seg === 'user-delta') {
       if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).send('Method Not Allowed'); }
       const body = await readJSON(req);
@@ -65,9 +72,11 @@ export default async function handler(req, res) {
       const r = await getRedis();
       let newScore = await r.zIncrBy('leaderboard', delta, id);
       if (newScore < 0) { await r.zAdd('leaderboard', [{ value: id, score: 0 }]); newScore = 0; }
+      noStore(res);
       return res.status(200).json({ ok: true, id, count: Number(newScore) });
     }
 
+    // Ban/unban user (POST { id, banned, purge? })
     if (seg === 'ban') {
       if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).send('Method Not Allowed'); }
       const body = await readJSON(req);
@@ -78,13 +87,26 @@ export default async function handler(req, res) {
       const r = await getRedis();
       await r.hSet(`user:${id}`, { Banned: banned ? 'true' : 'false' });
 
-      // If purge requested, remove from leaderboard and include how many were removed
       let removed = 0;
       if (purge) removed = await r.zRem('leaderboard', id);
 
+      noStore(res);
       return res.status(200).json({ ok: true, id, banned, purged: purge, removed });
     }
 
+    // Purge only (POST { id })
+    if (seg === 'purge') {
+      if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).send('Method Not Allowed'); }
+      const body = await readJSON(req);
+      const id = (body?.id || '').trim();
+      if (!id) return res.status(400).json({ error: 'Missing id' });
+      const r = await getRedis();
+      const removed = await r.zRem('leaderboard', id);
+      noStore(res);
+      return res.status(200).json({ ok: true, id, removed });
+    }
+
+    // Grant/revoke admin (POST { id, admin })
     if (seg === 'admin') {
       if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).send('Method Not Allowed'); }
       const body = await readJSON(req);
@@ -93,6 +115,7 @@ export default async function handler(req, res) {
       const makeAdmin = isTrueish(body?.admin);
       const r = await getRedis();
       await r.hSet(`user:${id}`, { Admin: makeAdmin ? 'true' : 'false', admin: makeAdmin ? 'true' : 'false' });
+      noStore(res);
       return res.status(200).json({ ok: true, id, admin: makeAdmin });
     }
 
