@@ -6,7 +6,6 @@
     <link rel="icon" href="data:," />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
-
     <style>
       :root {
         color-scheme: dark;
@@ -98,18 +97,15 @@
       .btn:hover { background: #333; }
       .btn.danger { background: #3a2323; border-color: #5c2a2a; }
 
-      /* Admin visibility: hidden by default; only show if body.has is-admin */
       #admin-panel { display: none !important; }
       body.is-admin #admin-panel { display: grid !important; }
 
-      /* Banned state UI */
       #leaderboard { transition: opacity .2s ease; }
       body.is-banned #leaderboard { display: none !important; }
       body.is-banned .cta-button { background: #991b1b !important; color: #fff; cursor: not-allowed; }
       body.is-banned .name-save { background: #991b1b !important; border-color: #5c2a2a; color: #fff; }
       body.is-banned { --digit: #ef4444; }
 
-      /* Context menu */
       .ctx-menu {
         position: fixed; z-index: 1000; min-width: 180px;
         background: #1f2937; border: 1px solid #374151; border-radius: 10px;
@@ -151,7 +147,6 @@
             <div class="name-status" id="name-status"></div>
           </section>
 
-          <!-- Admin panel (only shown when body.has is-admin) -->
           <section class="admin-panel" id="admin-panel" hidden>
             <div class="admin-card">
               <div class="admin-title">Admin</div>
@@ -190,7 +185,6 @@
       </div>
     </div>
 
-    <!-- Context menu -->
     <div id="ctx-menu" class="ctx-menu" hidden>
       <div id="ctx-copy-id" class="ctx-item">
         <span>📋</span>
@@ -226,7 +220,6 @@
 
       let myId = null;
 
-      // Build reels
       const reels = [];
       for (let i = 0; i < SLOTS; i++) {
         const slot = document.createElement('div'); slot.className = 'slot';
@@ -276,7 +269,6 @@
         currentValue = next;
       }
 
-      // Match panel width (button, name, admin)
       (function sizeToPanel() {
         const panel = document.querySelector('.panel');
         const wrap = document.querySelector('.counter-wrap');
@@ -291,7 +283,6 @@
         if ('ResizeObserver' in window) new ResizeObserver(setWidth).observe(wrap);
       })();
 
-      // Offline-aware fetch
       function setOnlineState(online) {
         offlineBar.hidden = online;
         const banned = document.body.classList.contains('is-banned');
@@ -310,8 +301,7 @@
       }
       window.addEventListener('online', async () => {
         setOnlineState(true);
-        await Promise.allSettled([refreshCount(), refreshLeaderboard()]);
-        if (document.body.classList.contains('is-admin')) await loadAdminStats();
+        await Promise.allSettled([refreshCount(), refreshLeaderboard(), checkAdminRole()]);
       });
       window.addEventListener('offline', () => setOnlineState(false));
 
@@ -328,7 +318,6 @@
         } finally { clearTimeout(t); }
       }
 
-      // API calls
       async function refreshCount() {
         try {
           const { count } = await fetchJSON('/api/count');
@@ -380,7 +369,6 @@
         }
       });
 
-      // Name
       const nameForm = document.getElementById('name-form');
       const nameInput = document.getElementById('name-input');
       const nameStatus = document.getElementById('name-status');
@@ -406,7 +394,33 @@
         finally { setTimeout(() => (nameStatus.textContent = ''), 2000); }
       });
 
-      // Admin
+      // Admin role refresh (instant toggle)
+      async function checkAdminRole() {
+        try {
+          const me = await fetchJSON('/api/me'); myId = me?.id || null;
+          if (me?.admin) {
+            document.body.classList.add('is-admin');
+            adminPanel.hidden = false;
+            await loadAdminStats();
+          } else {
+            document.body.classList.remove('is-admin');
+            adminPanel.hidden = true;
+          }
+          if (me?.banned) {
+            document.body.classList.add('is-banned');
+            incBtn.textContent = 'BANNED';
+            incBtn.disabled = true;
+            setNumber(0, { animate: false });
+          } else {
+            document.body.classList.remove('is-banned');
+            incBtn.textContent = '+1';
+          }
+        } catch {
+          document.body.classList.remove('is-admin');
+          adminPanel.hidden = true;
+        }
+      }
+
       async function loadAdminStats() {
         try {
           adminStatus.textContent = 'Loading…';
@@ -474,15 +488,8 @@
       adminUserGrant.addEventListener('click', async () => {
         const id = adminUserId.value.trim(); if (!id) return alert('Enter a user id');
         try {
-          await fetchJSON('/api/admin/admin', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, admin: true })
-          });
-          if (id === myId) {
-            document.body.classList.add('is-admin');
-            adminPanel.hidden = false;
-            await loadAdminStats();
-          }
+          await fetchJSON('/api/admin/admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, admin: true }) });
+          await checkAdminRole(); // reflect instantly
           alert('Granted admin');
         } catch (e) { alert('Failed: ' + e.message); }
       });
@@ -490,21 +497,13 @@
       adminUserRevoke.addEventListener('click', async () => {
         const id = adminUserId.value.trim(); if (!id) return alert('Enter a user id');
         try {
-          await fetchJSON('/api/admin/admin', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, admin: false })
-          });
-          if (id === myId) {
-            document.body.classList.remove('is-admin');
-            adminPanel.hidden = true;
-          }
+          await fetchJSON('/api/admin/admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, admin: false }) });
+          await checkAdminRole(); // reflect instantly
           alert('Removed admin');
         } catch (e) { alert('Failed: ' + e.message); }
       });
 
-      // Context menu (copy user ID) — no notifications
       const ctxMenu = document.getElementById('ctx-menu');
-      const ctxCopy = document.getElementById('ctx-copy-id');
       let ctxTargetId = '';
 
       lbList.addEventListener('contextmenu', (e) => {
@@ -514,14 +513,14 @@
         ctxTargetId = row.dataset.id || '';
         if (!ctxTargetId) return;
 
+        const rectPad = 8;
         ctxMenu.hidden = false;
         ctxMenu.style.visibility = 'hidden';
         requestAnimationFrame(() => {
           const rect = ctxMenu.getBoundingClientRect();
-          const pad = 8;
           let x = e.clientX, y = e.clientY;
-          x = Math.min(x, window.innerWidth - rect.width - pad);
-          y = Math.min(y, window.innerHeight - rect.height - pad);
+          x = Math.min(x, window.innerWidth - rect.width - rectPad);
+          y = Math.min(y, window.innerHeight - rect.height - rectPad);
           ctxMenu.style.left = x + 'px';
           ctxMenu.style.top = y + 'px';
           ctxMenu.style.visibility = 'visible';
@@ -563,33 +562,7 @@
         try { const { count } = await fetchJSON('/api/count'); setNumber(count, { animate: false }); } catch {}
         await loadName();
         await refreshLeaderboard();
-
-        // Get current user, set admin and banned UI
-        try {
-          const me = await fetchJSON('/api/me'); myId = me?.id || null;
-          // Admin gate
-          if (me?.admin) {
-            document.body.classList.add('is-admin');
-            adminPanel.hidden = false;
-            await loadAdminStats();
-          } else {
-            document.body.classList.remove('is-admin');
-            adminPanel.hidden = true;
-          }
-          // Banned gate
-          if (me?.banned) {
-            document.body.classList.add('is-banned');
-            incBtn.textContent = 'BANNED';
-            incBtn.disabled = true;
-            setNumber(0, { animate: false });
-          } else {
-            document.body.classList.remove('is-banned');
-            incBtn.textContent = '+1';
-          }
-        } catch {
-          document.body.classList.remove('is-admin');
-          adminPanel.hidden = true;
-        }
+        await checkAdminRole();
 
         let countTimer, lbTimer;
         const schedule = () => {
@@ -599,7 +572,10 @@
           countTimer = setInterval(refreshCount, countMs);
           lbTimer    = setInterval(refreshLeaderboard, lbMs);
         };
-        document.addEventListener('visibilitychange', schedule);
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) checkAdminRole();
+          schedule();
+        });
         schedule();
       })();
     </script>
